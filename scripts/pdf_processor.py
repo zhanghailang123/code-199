@@ -15,9 +15,11 @@ with open(CONFIG_PATH, "r", encoding="utf-8") as f:
 
 llm_config = config.get("llm", {})
 
+# Create client with explicit timeout (10 minutes for large PDF analysis)
 client = OpenAI(
     api_key=llm_config.get("api_key", ""),
-    base_url=llm_config.get("base_url", "https://api.openai.com/v1")
+    base_url=llm_config.get("base_url", "https://api.openai.com/v1"),
+    timeout=600.0  # 10 minutes timeout
 )
 MODEL = llm_config.get("model", "gpt-4o-mini")
 
@@ -237,8 +239,7 @@ def analyze_pdf_direct(pdf_path: str) -> dict:
         content.append({
             "type": "image_url",
             "image_url": {
-                "url": f"data:image/png;base64,{img_base64}",
-                "detail": "high"
+                "url": f"data:image/png;base64,{img_base64}"
             }
         })
         print(f"Added page {i+1}/{page_count}")
@@ -258,6 +259,11 @@ def analyze_pdf_direct(pdf_path: str) -> dict:
         
         result_text = response.choices[0].message.content
         print("Received response, parsing JSON...")
+        
+        # Remove image detail echoes that some LLMs add
+        result_text = re.sub(r'\[图像细节[^\]]*\]\s*', '', result_text)
+        result_text = re.sub(r'\[image[^\]]*\]\s*', '', result_text, flags=re.IGNORECASE)
+        
         print(f"Response preview: {result_text[:200]}...")
         
         # Extract JSON

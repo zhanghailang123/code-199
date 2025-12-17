@@ -6,68 +6,136 @@
 
 ---
 
-## 项目目标
+## 🎯 项目目标
 
-1. **智能刷题**: 
-  - 支持按章节、知识点筛选题目
-  - 自动记录错题，生成个性化练习计划
-  - **PDF真题导入**: 支持上传PDF试卷，AI自动识别题目并批量录入题库
-2. **知识图谱**: 可视化展示知识点关联，构建完整的知识体系查漏补缺
-3. **系统化学习**: 章节式逐步推进，线性学习路径
-4. **LLM智能分析**: 通过OpenAI兼容接口，自动分析题目、归类知识点
+1. **智能刷题**: 按知识点筛选、自动记录错题、个性化练习
+2. **PDF真题导入**: 上传PDF试卷 → AI识别题目 → 批量录入题库
+3. **英语多维分析**: 词汇联想、长难句拆解、阅读技巧
+4. **知识图谱**: 可视化知识点关联，查漏补缺
+5. **系统化学习**: 章节式学习路径
 
 ---
 
 ## 🚀 快速开始
 
-### 一键启动 (Windows)
+### 1. 拉取项目
+```bash
+git clone https://github.com/zhanghailang123/code-199.git
+cd code-199
+```
+
+### 2. 安装依赖
+
+**后端 (Python)**
+```bash
+pip install fastapi uvicorn pyyaml openai pypdfium2 pillow
+```
+
+**前端 (Node.js)**
+```bash
+cd web
+npm install
+cd ..
+```
+
+### 3. 配置 LLM
+编辑 `config/config.yaml`:
+```yaml
+llm:
+  api_key: "your-api-key"
+  base_url: "https://api.openai.com/v1"
+  model: "gpt-4o-mini"
+```
+
+### 4. 启动项目
+
+**方式一：一键启动 (Windows)**
 ```bash
 双击 start.bat
 ```
-这会同时启动：
-- **后端API** (端口 8000)
-- **前端页面** (端口 5173)
 
-### 命令行启动
+**方式二：手动启动**
 ```bash
-# 终端 1: 后端
-cd d:\newIDeaProject\code-199\scripts
+# 终端1 - 后端
+cd scripts
 python api.py
 
-# 终端 2: 前端
-cd d:\newIDeaProject\code-199\web
+# 终端2 - 前端
+cd web
 npm run dev
 ```
 
-打开浏览器访问: **http://localhost:5173**
+### 5. 访问
+- **后端API**: http://localhost:8000
+- **前端页面**: http://localhost:5173
+
 
 ---
 
 ## ✨ 已实现功能
 
 ### 📊 仪表盘 (`/`)
-- 题目统计、知识点统计
-- 快速访问最近题目
+- 题目统计、知识点统计、连续打卡
+- 快速访问题目和知识点列表
 
-### 📝 手动录入 (`/new/question`)
-- 表单录入题目
-- 实时 Markdown 预览
+### 📝 题目管理
+| 功能 | 路由 | 说明 |
+|------|------|------|
+| 全部题目 | `/questions` | 按科目筛选、搜索、网格展示 |
+| 手动录入 | `/new/question` | 表单录入 + Markdown预览 |
+| 智能录入 | `/smart-entry` | 粘贴原题 → LLM自动分析 |
+| 题目详情 | `/question/:id` | 分色展示题目/选项/答案/解析 |
 
-### 🤖 智能录入 (`/smart-entry`)
-- 粘贴原题文本
-- LLM 自动分析生成答案、解析、知识点
-- 一键保存为 Markdown 文件
+### 📄 PDF真题导入 (`/pdf-import`) ⭐ NEW
+- 上传PDF → 自动转换为图片
+- 逐页分析 or **整卷分析**（处理跨页题目）
+- 批量录入到题库
+- 支持英语真题的多维度分析
 
 ### 🧠 知识图谱 (`/graph`)
 - Cytoscape.js 可视化
-- 题目与知识点关联展示
-- 多种布局：力导向/环形/同心圆
-- 点击节点查看详情
+- 题目↔知识点关联
+- 力导向/环形/同心圆布局
 
-### 📖 题目详情页 (`/question/:id`)
-- 美化的题目展示
-- 分色显示：题目(蓝)/选项(灰)/答案(绿)/解析(黄)
-- 难度星级、知识点标签
+### 📚 学习路径 (`/curriculum`)
+| 科目 | 章节 |
+|------|------|
+| 数学 | 算术 → 代数 → 几何 → 数据分析 |
+| 逻辑 | 形式逻辑 → 论证逻辑 → 分析推理 |
+| 英语 | 词汇语法 → 阅读理解 → 写作翻译 |
+
+### 🇬🇧 英语专项分析 ⭐ NEW
+- **核心词汇**: 音标 + 释义 + 例句 + 联想词
+- **长难句分析**: 结构拆解 + 类似句子示例
+- **阅读技巧**: 题型分类 + 解题策略 + 干扰项分析
+
+---
+
+## 🎮 待开发功能（学习助力）
+
+### 🔥 高优先级
+| 功能 | 说明 | 价值 |
+|------|------|------|
+| 📅 **每日打卡** | 每天完成N题解锁徽章 | 养成习惯 |
+| 🎯 **错题本** | 自动记录做错的题，智能复习 | 针对性提升 |
+| ⏱️ **限时模拟** | 模拟真实考试环境计时答题 | 适应考场 |
+| 📈 **学习统计** | 每日/周/月做题量、正确率趋势 | 可视化进步 |
+
+### 💡 趣味功能
+| 功能 | 说明 | 价值 |
+|------|------|------|
+| 🎲 **随机一题** | 随机抽取一道题开始练习 | 碎片时间利用 |
+| 🏆 **成就系统** | 解锁成就徽章（首次满分、连续7天等） | 激励坚持 |
+| 📊 **能力雷达图** | 知识点掌握程度可视化 | 明确薄弱点 |
+| 🔔 **每日一句** | 每天推送一个长难句 | 渐进式学习 |
+
+### 🛠️ 系统增强
+| 功能 | 说明 |
+|------|------|
+| 🐳 Docker部署 | 一键部署到服务器 |
+| 📱 移动端适配 | 手机刷题 |
+| 🔍 全文搜索 | 搜索题目内容 |
+| 📤 导出功能 | 导出错题本为PDF |
 
 ---
 
@@ -76,74 +144,33 @@ npm run dev
 ```
 code-199/
 ├── content/                 # 📚 数据层
-│   ├── questions/           # 真题 (8道)
-│   │   ├── 2024-math-q01.md
-│   │   ├── 2024-math-q80.md  # AI生成
-│   │   └── ...
-│   ├── knowledge_base/      # 知识点库 (4个)
-│   │   ├── math/            # 2个知识点
-│   │   ├── logic/           # 1个知识点
-│   │   └── english/         # 1个知识点
-│   ├── curriculum/          # 学习章节 (待开发)
-│   └── papers/              # 完整试卷 (待开发)
+│   ├── questions/           # 题库
+│   ├── knowledge_base/      # 知识点库
+│   └── curriculum/          # 学习章节
+│       ├── math/            # 4章
+│       ├── logic/           # 3章
+│       └── english/         # 3章
 │
-├── config/
-│   └── config.yaml          # ⚙️ LLM API 配置
+├── config/config.yaml       # ⚙️ LLM配置
 │
-├── scripts/                 # � Python 后端
-│   ├── api.py               # FastAPI 服务 (8000端口)
-│   └── llm_analyzer.py      # LLM 分析器
+├── scripts/                 # 🐍 Python后端
+│   ├── api.py              # FastAPI服务
+│   ├── llm_analyzer.py     # LLM分析器
+│   └── pdf_processor.py    # PDF处理器
 │
-├── web/                     # 🌐 Vue 3 前端
-│   ├── src/
-│   │   ├── views/
-│   │   │   ├── HomeView.vue         # 仪表盘
-│   │   │   ├── ContentView.vue      # 题目详情
-│   │   │   ├── NewQuestionView.vue  # 手动录入
-│   │   │   ├── SmartEntryView.vue   # 智能录入
-│   │   │   └── KnowledgeGraphView.vue # 知识图谱
-│   │   └── style.css        # Tailwind CSS
-│   └── package.json
+├── web/                     # 🌐 Vue3前端
+│   └── src/views/
+│       ├── HomeView.vue           # 仪表盘
+│       ├── QuestionsView.vue      # 题目列表
+│       ├── ContentView.vue        # 题目详情
+│       ├── SmartEntryView.vue     # 智能录入
+│       ├── PdfUploadView.vue      # PDF导入
+│       ├── KnowledgeGraphView.vue # 知识图谱
+│       └── CurriculumView.vue     # 学习路径
 │
-├── start.bat                # Windows 一键启动
+├── start.bat               # Windows启动
 └── readme.md
 ```
-
----
-
-## 开发进度
-
-### ✅ Phase 1: 基础搭建
-- [x] 目录结构
-- [x] Vite + Vue 3 + Tailwind CSS
-- [x] 仪表盘页面
-- [x] Markdown 渲染
-
-### ✅ Phase 2: 数据录入
-- [x] 手动录入表单
-- [x] VSCode Snippets 快捷模板
-- [x] 示例数据 (8道题 + 4个知识点)
-
-### ✅ Phase 3: LLM 集成
-- [x] `llm_analyzer.py` 分析器
-- [x] `/api/analyze` 接口
-- [x] 智能录入页面
-
-### ✅ Phase 4: 可视化
-- [x] 知识图谱 (Cytoscape.js)
-- [x] 题目详情页美化
-- [x] 动态 API 加载
-
-### 🔄 Phase 5: 待完成功能
-
-| 功能 | 状态 | 说明 |
-|------|------|------|
-| 全部题目列表页 | ⬜ | 分页/筛选/搜索 |
-| 学习章节系统 | ⬜ | curriculum 目录结构 |
-| 学习进度追踪 | ⬜ | 打卡/统计 |
-| 知识点详情页 | ⬜ | 关联题目展示 |
-| 题目搜索 | ⬜ | 全文搜索 |
-| Docker 部署 | ⬜ | 容器化 |
 
 ---
 
@@ -153,12 +180,12 @@ code-199/
 
 ```yaml
 llm:
-  api_key: "sk-你的密钥"
-  base_url: "https://api.openai.com/v1"  # 或兼容服务
+  api_key: "your-api-key"
+  base_url: "https://api.openai.com/v1"
   model: "gpt-4o-mini"
 ```
 
-支持 OpenAI、DeepSeek、Azure 等兼容接口。
+支持: OpenAI / DeepSeek / Gemini 等兼容接口
 
 ---
 
@@ -171,11 +198,12 @@ llm:
 | 数据 | Markdown + YAML Frontmatter |
 | 图谱 | Cytoscape.js |
 | LLM | OpenAI 兼容 API |
+| PDF | pypdfium2 |
 
 ---
 
-## 下一步计划
+## 开发日志
 
-1. **继续录入真题** - 使用智能录入批量导入 2024 年完整真题
-2. **完善知识点库** - 根据题目提取的知识点建立关联
-3. **学习章节系统** - 设计系统化学习路径
+- **2025-12-17**: PDF真题导入、整卷分析、英语多维分析
+- **2025-12-16**: 知识图谱、学习路径、智能录入
+- **2025-12-15**: 项目初始化、基础框架
