@@ -224,7 +224,35 @@ onMounted(loadCurriculum)
         <!-- Modal Content -->
         <div class="flex-1 overflow-y-auto p-8">
           <div v-if="!chapterContent" class="text-center py-12 text-slate-500">加载中...</div>
-          <div v-else class="prose-content" v-html="chapterContent"></div>
+          <template v-else>
+            <!-- Related Questions Section -->
+            <div v-if="selectedChapter.related_questions?.length" class="mb-8 p-6 bg-blue-50 rounded-xl border border-blue-100">
+              <h3 class="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
+                📝 配套练习题
+              </h3>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <a 
+                  v-for="qId in selectedChapter.related_questions" 
+                  :key="qId"
+                  :href="'/question/' + qId"
+                  target="_blank"
+                  class="flex items-center gap-3 p-3 bg-white rounded-lg border border-blue-200 hover:border-blue-400 hover:shadow transition-all group"
+                >
+                  <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600 font-bold group-hover:bg-blue-500 group-hover:text-white transition-colors">
+                    {{ qId.split('-').pop()?.toUpperCase() }}
+                  </div>
+                  <div class="flex-1">
+                    <div class="font-medium text-slate-900">{{ qId }}</div>
+                    <div class="text-xs text-slate-500">新标签页打开</div>
+                  </div>
+                  <span class="text-blue-400 group-hover:text-blue-600 text-lg">↗</span>
+                </a>
+              </div>
+            </div>
+            
+            <!-- Markdown Content -->
+            <div class="prose-content" v-html="chapterContent"></div>
+          </template>
         </div>
         
         <!-- Modal Footer -->

@@ -447,3 +447,108 @@ def update_chapter_status(chapter_id: str, request: UpdateStatusRequest):
                         return {"message": "Status updated", "status": request.status}
     
     raise HTTPException(status_code=404, detail=f"Chapter {chapter_id} not found")
+
+
+# ====== PDF Upload Endpoints ======
+
+from fastapi import File, UploadFile
+import base64
+import shutil
+
+PDF_IMAGES_DIR = Path(__file__).parent.parent / "pdf_images"
+
+@app.post("/api/pdf/upload")
+async def upload_pdf(file: UploadFile = File(...)):
+    """Upload PDF and convert to images."""
+    if not file.filename.endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files allowed")
+    
+    # Save uploaded PDF
+    pdf_name = Path(file.filename).stem
+    pdf_dir = PDF_IMAGES_DIR / pdf_name
+    pdf_dir.mkdir(parents=True, exist_ok=True)
+    
+    pdf_path = pdf_dir / file.filename
+    with open(pdf_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    
+    # Convert to images using pypdfium2
+    try:
+        import pypdfium2 as pdfium
+        
+        pdf = pdfium.PdfDocument(str(pdf_path))
+        image_paths = []
+        
+        for i, page in enumerate(pdf):
+            bitmap = page.render(scale=150/72)  # 150 DPI
+            pil_image = bitmap.to_pil()
+            
+            image_path = pdf_dir / f"page_{i+1:03d}.png"
+            pil_image.save(str(image_path))
+            image_paths.append(f"page_{i+1:03d}.png")
+        
+        return {
+            "success": True,
+            "pdf_name": pdf_name,
+            "total_pages": len(image_paths),
+            "images": image_paths
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"PDF conversion failed: {str(e)}")
+
+
+@app.get("/api/pdf/list")
+def list_pdfs():
+    """List all uploaded PDFs and their images."""
+    pdfs = []
+    
+    if PDF_IMAGES_DIR.exists():
+        for pdf_dir in PDF_IMAGES_DIR.iterdir():
+            if pdf_dir.is_dir():
+                images = sorted([f.name for f in pdf_dir.glob("*.png")])
+                pdfs.append({
+                    "name": pdf_dir.name,
+                    "images": images,
+                    "total": len(images)
+                })
+    
+    return {"pdfs": pdfs}
+
+
+@app.get("/api/pdf/{pdf_name}/image/{image_name}")
+def get_pdf_image(pdf_name: str, image_name: str):
+    """Get a PDF page image as base64."""
+    image_path = PDF_IMAGES_DIR / pdf_name / image_name
+    
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    with open(image_path, "rb") as f:
+        image_data = base64.b64encode(f.read()).decode("utf-8")
+    
+    return {"image": image_data, "name": image_name}
+
+
+class AnalyzeImageRequest(BaseModel):
+    pdf_name: str
+    image_name: str
+
+@app.post("/api/pdf/analyze-image")
+def analyze_pdf_image(request: AnalyzeImageRequest):
+    """Analyze a PDF page image with LLM vision."""
+    from pdf_processor import extract_questions_from_image
+    
+    image_path = PDF_IMAGES_DIR / request.pdf_name / request.image_name
+    
+    print(f"DEBUG: Analyzing image: {image_path}")  # Debug print
+    
+    if not image_path.exists():
+        raise HTTPException(status_code=404, detail="Image not found")
+    
+    result = extract_questions_from_image(str(image_path))
+    
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    
+    return result
+

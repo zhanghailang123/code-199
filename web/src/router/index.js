@@ -35,6 +35,16 @@ const router = createRouter({
             component: () => import('../views/CurriculumView.vue')
         },
         {
+            path: '/questions',
+            name: 'questions',
+            component: () => import('../views/HomeView.vue')  // Redirect to home for now
+        },
+        {
+            path: '/pdf-import',
+            name: 'pdf-import',
+            component: () => import('../views/PdfUploadView.vue')
+        },
+        {
             path: '/knowledge/:category/:id',
             name: 'knowledge',
             component: () => import('../views/ContentView.vue')

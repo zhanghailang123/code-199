@@ -24,7 +24,10 @@
           <router-link to="/smart-entry" class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 font-medium hover:bg-slate-50 hover:text-slate-900 transition-colors" active-class="!bg-primary-50 !text-primary-700">
             <span>🤖</span> 智能录入
           </router-link>
-          <router-link to="/questions" class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-400 font-medium cursor-not-allowed opacity-50">
+          <router-link to="/pdf-import" class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 font-medium hover:bg-slate-50 hover:text-slate-900 transition-colors" active-class="!bg-primary-50 !text-primary-700">
+            <span>📄</span> PDF导入
+          </router-link>
+          <router-link to="/questions" class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-600 font-medium hover:bg-slate-50 hover:text-slate-900 transition-colors" active-class="!bg-primary-50 !text-primary-700">
             <span>📝</span> 全部题目
           </router-link>
         </div>

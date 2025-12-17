@@ -74,6 +74,7 @@ def analyze_question(question_text: str) -> dict:
     client = get_client()
     model = get_model()
     
+    
     try:
         response = client.chat.completions.create(
             model=model,
@@ -122,12 +123,96 @@ def analyze_question(question_text: str) -> dict:
         }
 
 
-if __name__ == "__main__":
-    # Test the analyzer
-    test_question = """
-    甲、乙两人分别从 A、B 两地同时出发，相向而行。甲的速度是乙的 1.5 倍。两人第一次相遇后继续前进，到达对方出发点后立即返回。问：两人第二次相遇时，甲走过的路程是乙的多少倍？
-    A. 1.2  B. 1.5  C. 1.8  D. 2.0  E. 2.5
+BATCH_ANALYZE_PROMPT = """你是一个专业的管理类联考（MEM/MBA）辅导老师。请批量分析以下考研真题。
+
+题目列表：
+{questions_json}
+
+请对每一道题进行分析，并返回一个包含所有题目分析结果的数组。
+
+请严格按照以下JSON数组格式返回：
+```json
+[
+  {{
+    "original_number": "题目原始编号",
+    "subject": "math或logic或english",
+    "type": "choice或fill或essay",
+    "difficulty": 1到5的数字,
+    "content": "题目主体内容",
+    "options": "选项文本，格式为 A. xxx\\nB. xxx...",
+    "answer": "正确答案",
+    "explanation": "详细解析步骤",
+    "knowledge_points": ["考点1", "考点2"],
+    "tags": ["标签1"]
+  }},
+  ...
+]
+```
+
+注意：
+1. 数组长度必须与输入题目数量一致。
+2. 保持顺序对应。
+3. 如果某题无法分析，也请返回一个基本对象，并在 explanation 中说明原因。
+"""
+
+def batch_analyze_questions(questions: list) -> list:
     """
+    Batch analyze multiple questions using LLM.
     
-    result = analyze_question(test_question)
-    print(result)
+    Args:
+        questions: List of dicts, each with 'number', 'content', 'options'
+        
+    Returns:
+        List of dicts with analyzed data
+    """
+    client = get_client()
+    model = get_model()
+    
+    import json
+    questions_str = json.dumps(questions, ensure_ascii=False, indent=2)
+    
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "你是一个专业的考研辅导老师。请批量处理题目分析任务。"},
+                {"role": "user", "content": BATCH_ANALYZE_PROMPT.format(questions_json=questions_str)}
+            ],
+            temperature=0.3,
+            max_tokens=4096
+        )
+        
+        content = response.choices[0].message.content
+        
+        import re
+        json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', content)
+        if json_match:
+            json_str = json_match.group(1).strip()
+        else:
+            json_match = re.search(r'\[[\s\S]*\]', content)
+            if json_match:
+                json_str = json_match.group(0)
+            else:
+                json_str = content
+                
+        results = json.loads(json_str)
+        return results
+        
+    except Exception as e:
+        # Fallback: process individually if batch fails
+        print(f"Batch analysis failed: {e}, falling back to individual processing")
+        results = []
+        for q in questions:
+            q_text = f"题号：{q.get('number')}\n题目：{q.get('content')}\n选项：{q.get('options')}"
+            res = analyze_question(q_text)
+            if res['success']:
+                res['data']['original_number'] = q.get('number')
+                results.append(res['data'])
+            else:
+                results.append({"error": res.get("error"), "original_number": q.get("number")})
+        return results
+
+
+if __name__ == "__main__":
+    # Test batch analyzer
+    pass
