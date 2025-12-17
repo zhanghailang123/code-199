@@ -552,3 +552,96 @@ def analyze_pdf_image(request: AnalyzeImageRequest):
     
     return result
 
+    return result
+
+
+class BatchImportRequest(BaseModel):
+    questions: List[dict]
+
+@app.post("/api/pdf/batch-import")
+def batch_import_questions(request: BatchImportRequest):
+    """
+    Batch analyze and import multiple questions.
+    """
+    from llm_analyzer import batch_analyze_questions
+    
+    if not request.questions:
+        return {"success": True, "results": []}
+        
+    # Analyze questions
+    analyzed_data = batch_analyze_questions(request.questions)
+    
+    results = []
+    
+    # Process and save each question
+    import datetime
+    
+    for item in analyzed_data:
+        if "error" in item:
+            results.append({"success": False, "error": item["error"], "number": item.get("original_number")})
+            continue
+            
+        try:
+            # Create question object similar to generate_question_md input
+            q_id = f"{datetime.datetime.now().year}-{item.get('subject', 'math')}-q{int(hash(item.get('content')) % 10000):04d}"
+            
+            # Map analyzed data to markdown structure
+            # (Reusing logic from generate_question_md would be better but simple construction here is faster)
+            
+            # Helper to create markdown
+            md = f"""---
+id: {q_id}
+difficulty: {item.get('difficulty', 3)}
+subject: {item.get('subject', 'math')}
+knowledge_points:
+"""
+            for kp in item.get('knowledge_points', []):
+                md += f"  - {kp}\n"
+                
+            md += f"""tags:
+"""
+            for tag in item.get('tags', []):
+                md += f"  - {tag}\n"
+                
+            md += f"""---
+
+## 题目
+{item.get('content')}
+
+## 选项
+{item.get('options')}
+
+## 答案
+{item.get('answer')}
+
+## 解析
+{item.get('explanation')}
+"""
+            
+            # Save file
+            file_path = QUESTIONS_DIR / f"{q_id}.md"
+            QUESTIONS_DIR.mkdir(parents=True, exist_ok=True)
+            
+            # Avoid overwriting
+            counter = 1
+            while file_path.exists():
+                file_path = QUESTIONS_DIR / f"{q_id}_{counter}.md"
+                counter += 1
+                
+            file_path.write_text(md, encoding="utf-8")
+            
+            results.append({
+                "success": True, 
+                "number": item.get("original_number"),
+                "id": q_id,
+                "path": str(file_path)
+            })
+            
+        except Exception as e:
+            results.append({
+                "success": False, 
+                "error": str(e),
+                "number": item.get("original_number")
+            })
+            
+    return {"results": results}

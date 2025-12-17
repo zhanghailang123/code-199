@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 
 const loading = ref(false)
 const uploading = ref(false)
@@ -11,6 +11,123 @@ const pdfs = ref([])
 const selectedPdf = ref(null)
 const selectedImages = ref([])
 const analysisResults = ref([])
+const isBatchImporting = ref(false)
+
+const allQuestionsCount = computed(() => {
+  return analysisResults.value.reduce((acc, curr) => acc + (curr.questions?.length || 0), 0)
+})
+
+async function batchImportAll() {
+  if (allQuestionsCount.value === 0 || isBatchImporting.value) return
+  
+  // Collect all non-imported questions
+  const pendingQuestions = []
+  analysisResults.value.forEach(result => {
+    if (result.questions) {
+      result.questions.forEach(q => {
+        if (!q.imported && !q.importing) {
+          pendingQuestions.push(q)
+        }
+      })
+    }
+  })
+  
+  if (pendingQuestions.length === 0) {
+    alert('所有题目已录入')
+    return
+  }
+  
+  isBatchImporting.value = true
+  
+  try {
+    // Optimistic UI update
+    pendingQuestions.forEach(q => q.importing = true)
+    
+    // Call batch API
+    const res = await fetch('http://localhost:8000/api/pdf/batch-import', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        questions: pendingQuestions.map(q => ({
+          number: q.number,
+          content: q.content,
+          options: q.options,
+          subject: q.subject
+        }))
+      })
+    })
+    
+    if (!res.ok) throw new Error('批量录入请求失败')
+    
+    const data = await res.json()
+    
+    // Update status based on results
+    data.results.forEach(result => {
+      const q = pendingQuestions.find(pq => pq.number === result.number)
+      if (q) {
+        q.importing = false
+        if (result.success) {
+          q.imported = true
+        } else {
+          q.error = result.error || '录入失败'
+        }
+      }
+    })
+    
+  } catch (e) {
+    pendingQuestions.forEach(q => {
+      q.importing = false
+      q.error = e.message
+    })
+  } finally {
+    isBatchImporting.value = false
+  }
+}
+
+async function importQuestion(question) {
+  if (question.importing || question.imported) return
+  
+  question.importing = true
+  question.error = null
+  
+  try {
+    const prompt = `
+题号：${question.number}
+题目：
+${question.content}
+
+选项：
+${(question.options || []).join('\n')}
+
+科目：${question.subject || 'math'}
+`
+    
+    const res = await fetch('http://localhost:8000/api/questions/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        input_text: prompt,
+        mode: 'auto'
+      })
+    })
+    
+    if (!res.ok) {
+      throw new Error('录入失败，请重试')
+    }
+    
+    const data = await res.json()
+    if (data.success) {
+      question.imported = true
+    } else {
+      throw new Error(data.message || '录入失败')
+    }
+    
+  } catch (e) {
+    question.error = e.message
+  } finally {
+    question.importing = false
+  }
+}
 
 // Preview state
 const previewImage = ref(null)
@@ -228,6 +345,16 @@ onMounted(loadPdfs)
             <div class="flex gap-2">
               <button @click="selectAll" class="btn btn-ghost text-sm">全选</button>
               <button @click="clearSelection" class="btn btn-ghost text-sm">清空</button>
+              
+              <!-- Batch Import Button -->
+              <button @click="batchImportAll" 
+                      class="btn bg-green-500 hover:bg-green-600 text-sm text-white border-none"
+                      v-if="analysisResults.length > 0"
+                      :disabled="isBatchImporting">
+                 <span v-if="isBatchImporting">⚡ 批量录入中...</span>
+                 <span v-else>⚡ 批量录入本页 ({{ allQuestionsCount }})</span>
+              </button>
+
               <button @click="analyzeSelected" 
                       class="btn btn-primary text-sm"
                       :disabled="selectedImages.length === 0 || analyzing">
