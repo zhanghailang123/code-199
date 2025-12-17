@@ -12,6 +12,8 @@ const selectedPdf = ref(null)
 const selectedImages = ref([])
 const analysisResults = ref([])
 const isBatchImporting = ref(false)
+const isFullAnalyzing = ref(false)
+const fullAnalysisResult = ref(null)
 
 const allQuestionsCount = computed(() => {
   return analysisResults.value.reduce((acc, curr) => acc + (curr.questions?.length || 0), 0)
@@ -81,6 +83,37 @@ async function batchImportAll() {
     })
   } finally {
     isBatchImporting.value = false
+  }
+}
+
+async function analyzeFullPdf() {
+  if (!selectedPdf.value || isFullAnalyzing.value) return
+  
+  isFullAnalyzing.value = true
+  fullAnalysisResult.value = null
+  error.value = ''
+  
+  try {
+    const res = await fetch('http://localhost:8000/api/pdf/analyze-full', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pdf_name: selectedPdf.value.name
+      })
+    })
+    
+    if (!res.ok) {
+      const errData = await res.json()
+      throw new Error(errData.detail || '整卷分析失败')
+    }
+    
+    fullAnalysisResult.value = await res.json()
+    successMsg.value = `整卷分析完成！发现 ${fullAnalysisResult.value.sections?.length || 0} 个题型板块`
+    
+  } catch (e) {
+    error.value = e.message
+  } finally {
+    isFullAnalyzing.value = false
   }
 }
 
@@ -361,6 +394,14 @@ onMounted(loadPdfs)
                 <span v-if="analyzing">分析中...</span>
                 <span v-else>🤖 分析选中 ({{ selectedImages.length }})</span>
               </button>
+              
+              <!-- Full PDF Analysis Button -->
+              <button @click="analyzeFullPdf" 
+                      class="btn bg-purple-500 hover:bg-purple-600 text-sm text-white border-none"
+                      :disabled="isFullAnalyzing">
+                <span v-if="isFullAnalyzing">📚 整卷分析中...</span>
+                <span v-else>📚 整卷分析</span>
+              </button>
             </div>
           </div>
           
@@ -386,7 +427,64 @@ onMounted(loadPdfs)
           </div>
         </div>
         
-        <!-- Analysis Results -->
+        <!-- Full PDF Analysis Results -->
+        <div v-if="fullAnalysisResult" class="card p-6 mt-6 border-2 border-purple-200">
+          <div class="flex justify-between items-start mb-4">
+            <div>
+              <h2 class="font-bold text-purple-800 text-lg">📚 整卷分析结果</h2>
+              <p class="text-sm text-slate-500 mt-1" v-if="fullAnalysisResult.exam_info">
+                {{ fullAnalysisResult.exam_info.year }} 
+                {{ fullAnalysisResult.exam_info.type }} - 
+                共 {{ fullAnalysisResult.exam_info.total_questions }} 题
+              </p>
+            </div>
+            <button @click="fullAnalysisResult = null" class="text-slate-400 hover:text-slate-600">✕</button>
+          </div>
+          
+          <!-- Sections -->
+          <div v-if="fullAnalysisResult.sections" class="space-y-4 mb-6">
+            <div v-for="(section, i) in fullAnalysisResult.sections" :key="i" 
+                 class="bg-purple-50 rounded-xl p-4">
+              <div class="font-bold text-purple-800 mb-2">{{ section.section_name }}</div>
+              <div class="text-xs text-slate-500 mb-3">页码: {{ section.page_range }}</div>
+              <div class="space-y-2">
+                <div v-for="(q, j) in section.questions" :key="j" 
+                     class="bg-white rounded-lg p-3 text-sm">
+                  <div class="font-medium text-slate-800">第{{ q.number }}题</div>
+                  <div class="text-slate-600 mt-1">{{ q.content?.substring(0, 100) }}...</div>
+                  <div v-if="q.answer" class="text-green-600 font-medium mt-1">答案: {{ q.answer }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Vocabulary Highlights -->
+          <div v-if="fullAnalysisResult.vocabulary_highlights?.length" class="mb-6">
+            <h3 class="font-bold text-indigo-700 mb-3">📖 核心词汇</h3>
+            <div class="flex flex-wrap gap-3">
+              <div v-for="(vocab, i) in fullAnalysisResult.vocabulary_highlights" :key="i" 
+                   class="bg-indigo-50 rounded-lg px-3 py-2">
+                <span class="font-bold text-indigo-700">{{ vocab.word }}</span>
+                <span class="text-slate-600 ml-2">{{ vocab.meaning }}</span>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Key Sentences -->
+          <div v-if="fullAnalysisResult.key_sentences?.length">
+            <h3 class="font-bold text-amber-700 mb-3">✍️ 重点长难句</h3>
+            <div class="space-y-3">
+              <div v-for="(sent, i) in fullAnalysisResult.key_sentences" :key="i" 
+                   class="bg-amber-50 rounded-lg p-3">
+                <div class="text-slate-800 italic">{{ sent.sentence }}</div>
+                <div class="text-slate-600 mt-1">📝 {{ sent.translation }}</div>
+                <div class="text-xs text-amber-600 mt-1">来源: {{ sent.source }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Page-by-Page Analysis Results -->
         <div v-if="analysisResults.length > 0" class="card p-6 mt-6">
           <h2 class="font-bold text-slate-800 mb-4">🤖 AI识别结果</h2>
           

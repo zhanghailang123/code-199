@@ -50,17 +50,35 @@ async function fetchContent() {
   error.value = ''
   
   const id = route.params.id
+  const category = route.params.category
+  const routeName = route.name
   
   try {
-    const res = await fetch(`http://localhost:8000/api/questions/${id}`)
+    let apiUrl = ''
+    
+    // Detect if this is a knowledge route or question route
+    if (routeName === 'knowledge' && category) {
+      apiUrl = `http://localhost:8000/api/knowledge/${category}/${id}`
+    } else {
+      apiUrl = `http://localhost:8000/api/questions/${id}`
+    }
+    
+    const res = await fetch(apiUrl)
     if (!res.ok) throw new Error('内容未找到')
     
     const data = await res.json()
     rawContent.value = data.raw || ''
     
-    if (id.includes('math')) subject.value = 'math'
-    else if (id.includes('logic')) subject.value = 'logic'
-    else if (id.includes('english')) subject.value = 'english'
+    // Determine subject from category or id
+    if (category) {
+      subject.value = category
+    } else if (id.includes('math')) {
+      subject.value = 'math'
+    } else if (id.includes('logic')) {
+      subject.value = 'logic'
+    } else if (id.includes('english')) {
+      subject.value = 'english'
+    }
     
   } catch (e) {
     error.value = e.message || '加载失败'
@@ -128,9 +146,9 @@ const subjectLabel = computed(() => {
   <div class="max-w-4xl mx-auto" v-else-if="parsed">
     <!-- Breadcrumb -->
     <div class="flex items-center gap-2 text-sm text-slate-500 mb-6">
-      <router-link to="/" class="font-medium text-slate-600 hover:text-blue-600 transition-colors">
-        ← 返回仪表盘
-      </router-link>
+      <button @click="$router.back()" class="font-medium text-slate-600 hover:text-blue-600 transition-colors">
+        ← 返回上一页
+      </button>
     </div>
 
     <!-- Main Card -->
@@ -217,6 +235,80 @@ const subjectLabel = computed(() => {
             <span class="text-2xl">💡</span> 解析
           </h2>
           <div class="prose-content text-slate-700" v-html="marked(parsed.sections['解析'])"></div>
+        </section>
+        
+        <!-- English-Specific: Vocabulary Section -->
+        <section v-if="parsed.meta.vocabulary && subject === 'english'" class="bg-indigo-50 rounded-xl p-6 border-l-4 border-indigo-400">
+          <h2 class="text-lg font-bold text-indigo-900 mb-4 flex items-center gap-2">
+            <span class="text-2xl">📚</span> 核心词汇
+          </h2>
+          <div class="space-y-4">
+            <div v-for="(vocab, i) in parsed.meta.vocabulary" :key="i" class="bg-white rounded-lg p-4 shadow-sm">
+              <div class="flex items-baseline gap-3 mb-2">
+                <span class="text-xl font-bold text-indigo-700">{{ vocab.word }}</span>
+                <span class="text-sm text-slate-500">{{ vocab.phonetic }}</span>
+              </div>
+              <div class="text-slate-700 mb-2">{{ vocab.meaning }}</div>
+              <div class="text-sm text-slate-500 italic mb-3">{{ vocab.example }}</div>
+              
+              <!-- Associated Words -->
+              <div v-if="vocab.associated_words?.length" class="flex flex-wrap gap-2">
+                <span class="text-xs text-indigo-600 font-medium">联想词:</span>
+                <span v-for="word in vocab.associated_words" :key="word" 
+                      class="px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-xs">
+                  {{ word }}
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
+        
+        <!-- English-Specific: Key Sentences Section -->
+        <section v-if="parsed.meta.key_sentences && subject === 'english'" class="bg-purple-50 rounded-xl p-6 border-l-4 border-purple-400">
+          <h2 class="text-lg font-bold text-purple-900 mb-4 flex items-center gap-2">
+            <span class="text-2xl">✍️</span> 长难句分析
+          </h2>
+          <div class="space-y-6">
+            <div v-for="(sentence, i) in parsed.meta.key_sentences" :key="i" class="bg-white rounded-lg p-4 shadow-sm">
+              <div class="text-slate-800 font-medium mb-2 leading-relaxed">{{ sentence.original }}</div>
+              <div class="text-slate-600 mb-3">📝 {{ sentence.translation }}</div>
+              <div class="text-sm text-purple-700 mb-4">
+                <span class="font-medium">结构分析:</span> {{ sentence.structure }}
+              </div>
+              
+              <!-- Similar Sentences -->
+              <div v-if="sentence.similar_sentences?.length" class="border-t pt-3">
+                <div class="text-xs text-purple-600 font-medium mb-2">类似结构句子:</div>
+                <div class="space-y-2">
+                  <div v-for="(sim, j) in sentence.similar_sentences" :key="j" 
+                       class="text-sm text-slate-600 pl-3 border-l-2 border-purple-200">
+                    {{ sim }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+        
+        <!-- English-Specific: Reading Skills Section -->
+        <section v-if="parsed.meta.reading_skills && subject === 'english'" class="bg-teal-50 rounded-xl p-6 border-l-4 border-teal-400">
+          <h2 class="text-lg font-bold text-teal-900 mb-4 flex items-center gap-2">
+            <span class="text-2xl">🎯</span> 阅读技巧
+          </h2>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-white rounded-lg p-4">
+              <div class="text-sm text-teal-600 font-medium mb-1">题型分类</div>
+              <div class="text-slate-800">{{ parsed.meta.reading_skills.question_type }}</div>
+            </div>
+            <div class="bg-white rounded-lg p-4">
+              <div class="text-sm text-teal-600 font-medium mb-1">解题策略</div>
+              <div class="text-slate-800">{{ parsed.meta.reading_skills.solving_strategy }}</div>
+            </div>
+            <div class="bg-white rounded-lg p-4">
+              <div class="text-sm text-teal-600 font-medium mb-1">干扰项分析</div>
+              <div class="text-slate-800">{{ parsed.meta.reading_skills.distractor_analysis }}</div>
+            </div>
+          </div>
         </section>
       </div>
     </article>

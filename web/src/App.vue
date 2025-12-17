@@ -1,4 +1,23 @@
 <script setup>
+import { ref, onErrorCaptured } from 'vue'
+
+// Global error state to show user-friendly error UI
+const globalError = ref(null)
+
+// Capture errors from child components to prevent app freeze
+onErrorCaptured((error, instance, info) => {
+  console.error('Vue Error Captured:', error, info)
+  globalError.value = {
+    message: error.message || '页面发生错误',
+    info: info
+  }
+  // Return false to stop error propagation (prevents app freeze)
+  return false
+})
+
+function clearError() {
+  globalError.value = null
+}
 </script>
 
 <template>
@@ -54,9 +73,23 @@
 
     <!-- Main Content -->
     <main class="flex-1 ml-64 bg-slate-50 p-8 min-h-screen">
-      <router-view v-slot="{ Component }">
+      <!-- Global Error Toast -->
+      <div v-if="globalError" 
+           class="fixed top-4 right-4 z-50 bg-red-500 text-white px-6 py-4 rounded-xl shadow-lg max-w-md">
+        <div class="flex items-start gap-3">
+          <span class="text-2xl">⚠️</span>
+          <div class="flex-1">
+            <div class="font-bold">页面发生错误</div>
+            <div class="text-sm opacity-90 mt-1">{{ globalError.message }}</div>
+          </div>
+          <button @click="clearError" class="text-2xl hover:opacity-70">×</button>
+        </div>
+      </div>
+      
+      <!-- Router View with Error Recovery -->
+      <router-view v-slot="{ Component }" :key="$route.fullPath">
         <transition name="fade" mode="out-in">
-          <component :is="Component" />
+          <component :is="Component" @vue:error="clearError" />
         </transition>
       </router-view>
     </main>

@@ -37,7 +37,7 @@ const router = createRouter({
         {
             path: '/questions',
             name: 'questions',
-            component: () => import('../views/HomeView.vue')  // Redirect to home for now
+            component: () => import('../views/QuestionsView.vue')
         },
         {
             path: '/pdf-import',

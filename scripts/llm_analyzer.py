@@ -61,6 +61,64 @@ ANALYZE_PROMPT = """你是一个专业的管理类联考（MEM/MBA）辅导老�
 5. 返回纯JSON，不要有其他文字"""
 
 
+# English-specialized analysis prompt with vocabulary and sentence dimensions
+ENGLISH_ANALYZE_PROMPT = """你是一位资深的考研英语辅导专家，请对以下英语真题进行多维度深度分析。
+
+题目内容：
+{question_text}
+
+请按照以下JSON格式返回分析结果（确保返回的是合法的JSON）：
+
+```json
+{{
+    "subject": "english",
+    "type": "choice或reading或translation或writing",
+    "difficulty": 1到5的数字,
+    "content": "题目主体内容",
+    "options": "选项文本（如有）",
+    "answer": "正确答案",
+    "explanation": "详细解析，包含解题思路",
+    "knowledge_points": ["考点1", "考点2"],
+    "tags": ["标签"],
+    
+    "vocabulary": [
+        {{
+            "word": "核心词汇",
+            "phonetic": "音标",
+            "meaning": "中文释义",
+            "example": "例句",
+            "associated_words": ["联想词1", "联想词2", "联想词3"]
+        }}
+    ],
+    
+    "key_sentences": [
+        {{
+            "original": "题目中的关键句/长难句",
+            "translation": "中文翻译",
+            "structure": "句子结构分析（主干+修饰成分）",
+            "similar_sentences": [
+                "类似结构的句子示例1",
+                "类似结构的句子示例2"
+            ]
+        }}
+    ],
+    
+    "reading_skills": {{
+        "question_type": "题型分类（主旨/细节/推理/态度/词义）",
+        "solving_strategy": "解题策略",
+        "distractor_analysis": "干扰项分析"
+    }}
+}}
+```
+
+分析要求：
+1. vocabulary：提取3-5个核心词汇，每个词汇附带2-3个联想词（同义词/反义词/词根相关）
+2. key_sentences：提取1-2个长难句，分析结构，并给出2个结构类似的句子示例
+3. reading_skills：仅阅读理解题需要填写此项
+4. 确保所有中文翻译准确流畅
+5. 返回纯JSON，不要有其他文字"""
+
+
 def analyze_question(question_text: str) -> dict:
     """
     Analyze a question using LLM.
@@ -115,6 +173,65 @@ def analyze_question(question_text: str) -> dict:
         return {
             "success": False,
             "error": f"JSON解析失败: {str(e)}\n原始响应: {content[:500] if 'content' in dir() else 'N/A'}"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+def analyze_english_question(question_text: str) -> dict:
+    """
+    Analyze an English question with multi-dimensional analysis.
+    Includes vocabulary, associated words, key sentences, and similar examples.
+    
+    Args:
+        question_text: Raw English question text
+    
+    Returns:
+        Dictionary with comprehensive English analysis data
+    """
+    client = get_client()
+    model = get_model()
+    
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "你是一位资深的考研英语辅导专家，擅长词汇、语法、阅读理解和写作分析。请务必按照用户要求的JSON格式返回结果。"},
+                {"role": "user", "content": ENGLISH_ANALYZE_PROMPT.format(question_text=question_text)}
+            ],
+            temperature=0.3,
+            max_tokens=4096
+        )
+        
+        content = response.choices[0].message.content
+        
+        import json
+        import re
+        
+        json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', content)
+        if json_match:
+            json_str = json_match.group(1).strip()
+        else:
+            json_match = re.search(r'\{[\s\S]*\}', content)
+            if json_match:
+                json_str = json_match.group(0)
+            else:
+                json_str = content
+        
+        result = json.loads(json_str)
+        
+        return {
+            "success": True,
+            "data": result
+        }
+        
+    except json.JSONDecodeError as e:
+        return {
+            "success": False,
+            "error": f"JSON解析失败: {str(e)}"
         }
     except Exception as e:
         return {

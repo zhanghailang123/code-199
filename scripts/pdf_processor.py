@@ -139,6 +139,216 @@ def pdf_to_images(pdf_path: str, output_dir: str, dpi: int = 150) -> list:
     return image_paths
 
 
+# Prompt for full PDF analysis (handles cross-page questions)
+FULL_PDF_PROMPT = """你是一位资深的英语考研辅导专家。请分析这份完整的英语真题试卷（共{page_count}页）。
+
+**重要说明**：
+- 题目可能跨越多页，请仔细阅读所有页面后再进行分析
+- 阅读理解的文章和题目可能分布在不同页面，请将它们整合在一起
+
+请按照以下JSON格式返回分析结果：
+
+```json
+{{
+  "exam_info": {{
+    "year": "考试年份",
+    "type": "考试类型（如：英语二）",
+    "total_questions": "题目总数"
+  }},
+  "sections": [
+    {{
+      "section_name": "题型名称（如：完形填空、阅读理解Text1等）",
+      "page_range": "所在页码范围",
+      "questions": [
+        {{
+          "number": "题号",
+          "content": "题目内容",
+          "options": ["A. xxx", "B. xxx", "C. xxx", "D. xxx"],
+          "answer": "正确答案（如有）",
+          "passage": "相关文章段落（阅读理解需要）"
+        }}
+      ]
+    }}
+  ],
+  "vocabulary_highlights": [
+    {{
+      "word": "核心词汇",
+      "meaning": "释义",
+      "context": "原文语境"
+    }}
+  ],
+  "key_sentences": [
+    {{
+      "sentence": "重点长难句",
+      "translation": "中文翻译",
+      "source": "来源（如Text1第2段）"
+    }}
+  ]
+}}
+```
+
+请确保：
+1. 完整提取所有题目，不要遗漏
+2. 阅读理解题请附带相关文章段落
+3. 提取5-10个核心词汇和3-5个长难句
+4. 返回纯JSON，不要有其他文字
+"""
+
+
+def analyze_pdf_direct(pdf_path: str) -> dict:
+    """
+    Analyze PDF by converting to images first, then sending all images to LLM.
+    This is more compatible with OpenAI-compatible API proxies.
+    
+    Args:
+        pdf_path: Path to the PDF file
+    
+    Returns:
+        Dictionary with comprehensive analysis results
+    """
+    import json
+    import re
+    import tempfile
+    import pypdfium2 as pdfium
+    
+    print(f"Analyzing PDF: {pdf_path}")
+    
+    # Convert PDF to images in memory
+    pdf = pdfium.PdfDocument(pdf_path)
+    page_count = len(pdf)
+    print(f"Converting {page_count} pages to images...")
+    
+    # Build content array with all page images
+    content = [
+        {"type": "text", "text": FULL_PDF_PROMPT.format(page_count=page_count)}
+    ]
+    
+    for i, page in enumerate(pdf):
+        # Render page to image
+        bitmap = page.render(scale=150/72)  # 150 DPI
+        pil_image = bitmap.to_pil()
+        
+        # Convert to base64
+        import io
+        buffer = io.BytesIO()
+        pil_image.save(buffer, format="PNG")
+        img_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
+        
+        content.append({
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:image/png;base64,{img_base64}",
+                "detail": "high"
+            }
+        })
+        print(f"Added page {i+1}/{page_count}")
+    
+    try:
+        print("Sending all pages to LLM for analysis...")
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {
+                    "role": "user",
+                    "content": content
+                }
+            ],
+            max_tokens=8192
+        )
+        
+        result_text = response.choices[0].message.content
+        print("Received response, parsing JSON...")
+        print(f"Response preview: {result_text[:200]}...")
+        
+        # Extract JSON
+        json_match = re.search(r'```json\s*([\s\S]*?)\s*```', result_text)
+        if json_match:
+            result_text = json_match.group(1)
+        
+        json_match = re.search(r'\{[\s\S]*\}', result_text)
+        if json_match:
+            result_text = json_match.group(0)
+        
+        return json.loads(result_text)
+        
+    except json.JSONDecodeError as e:
+        print(f"JSON parsing failed: {e}")
+        return {"error": f"JSON解析失败: {e}", "raw_response": result_text[:500] if 'result_text' in dir() else ""}
+    except Exception as e:
+        print(f"Analysis failed: {e}")
+        return {"error": str(e)}
+
+
+def analyze_full_pdf(image_paths: list, max_pages: int = 20) -> dict:
+    """
+    Analyze entire PDF by sending all page images to LLM at once.
+    Handles cross-page questions like reading comprehension.
+    
+    Args:
+        image_paths: List of image file paths (in order)
+        max_pages: Maximum pages to send (to avoid token limits)
+    
+    Returns:
+        Dictionary with comprehensive analysis results
+    """
+    # Limit pages to avoid token overflow
+    if len(image_paths) > max_pages:
+        print(f"Warning: Limiting to first {max_pages} pages")
+        image_paths = image_paths[:max_pages]
+    
+    # Build content array with all images
+    content = [
+        {"type": "text", "text": FULL_PDF_PROMPT.format(page_count=len(image_paths))}
+    ]
+    
+    for i, image_path in enumerate(image_paths):
+        base64_image = encode_image(image_path)
+        ext = Path(image_path).suffix.lower()
+        mime_type = "image/png" if ext == ".png" else "image/jpeg"
+        
+        content.append({
+            "type": "image_url",
+            "image_url": {
+                "url": f"data:{mime_type};base64,{base64_image}",
+                "detail": "high"
+            }
+        })
+        print(f"Added page {i+1}/{len(image_paths)}")
+    
+    try:
+        print("Sending to LLM for analysis...")
+        response = client.chat.completions.create(
+            model=MODEL,
+            messages=[
+                {
+                    "role": "user",
+                    "content": content
+                }
+            ],
+            max_tokens=8192
+        )
+        
+        result_text = response.choices[0].message.content
+        print("Received response, parsing JSON...")
+        
+        # Extract JSON
+        import re
+        import json
+        
+        json_match = re.search(r'```json\s*([\s\S]*?)\s*```', result_text)
+        if json_match:
+            result_text = json_match.group(1)
+        
+        json_match = re.search(r'\{[\s\S]*\}', result_text)
+        if json_match:
+            result_text = json_match.group(0)
+        
+        return json.loads(result_text)
+        
+    except Exception as e:
+        return {"error": str(e)}
+
+
 def process_pdf(pdf_path: str, output_dir: str = None):
     """Process entire PDF: convert to images and extract questions."""
     pdf_path = Path(pdf_path)

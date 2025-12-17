@@ -233,7 +233,25 @@ def get_knowledge_points():
     return {"knowledge_points": kps, "total": len(kps)}
 
 
-# ====== LLM Analysis Endpoint ======
+@app.get("/api/knowledge/{category}/{kp_id}")
+def get_knowledge_detail(category: str, kp_id: str):
+    """Get a specific knowledge point by category and ID."""
+    file_path = KNOWLEDGE_DIR / category / f"{kp_id}.md"
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Knowledge point not found")
+    
+    content = file_path.read_text(encoding="utf-8")
+    meta = parse_frontmatter(content)
+    
+    return {
+        "id": kp_id,
+        "category": category,
+        "raw": content,
+        "meta": meta
+    }
+
+
 
 class AnalyzeRequest(BaseModel):
     question_text: str
@@ -257,9 +275,27 @@ def analyze_question_endpoint(request: AnalyzeRequest):
     return result
 
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)
+class EnglishAnalyzeRequest(BaseModel):
+    question_text: str
+
+@app.post("/api/analyze-english")
+def analyze_english_endpoint(request: EnglishAnalyzeRequest):
+    """
+    Analyze an English question with multi-dimensional analysis.
+    Returns vocabulary, associated words, key sentences, similar examples, etc.
+    """
+    from llm_analyzer import analyze_english_question
+    
+    if not request.question_text.strip():
+        raise HTTPException(status_code=400, detail="Question text is required")
+    
+    result = analyze_english_question(request.question_text)
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "Analysis failed"))
+    
+    return result
+
 
 
 # ====== Knowledge Graph Endpoint ======
@@ -552,6 +588,56 @@ def analyze_pdf_image(request: AnalyzeImageRequest):
     
     return result
 
+
+class AnalyzeFullPdfRequest(BaseModel):
+    pdf_name: str
+
+@app.post("/api/pdf/analyze-full")
+def analyze_full_pdf_endpoint(request: AnalyzeFullPdfRequest):
+    """
+    Analyze entire PDF at once by sending PDF file directly to LLM.
+    More efficient - no image conversion needed.
+    """
+    from pdf_processor import analyze_pdf_direct, analyze_full_pdf
+    
+    # Use project root directory
+    project_root = Path(__file__).parent.parent
+    pdf_path = project_root / f"{request.pdf_name}.pdf"
+    
+    print(f"DEBUG: Looking for PDF at: {pdf_path}")
+    print(f"DEBUG: PDF exists: {pdf_path.exists()}")
+    
+    if pdf_path.exists():
+        # Direct PDF analysis (more efficient)
+        print(f"✅ Found PDF, analyzing directly: {pdf_path}")
+        result = analyze_pdf_direct(str(pdf_path))
+        
+        # If direct analysis failed, fallback to image-based
+        if result.get("fallback_needed"):
+            pdf_dir = PDF_IMAGES_DIR / request.pdf_name
+            if pdf_dir.exists():
+                image_files = sorted(pdf_dir.glob("page_*.png"))
+                if image_files:
+                    print("Using image-based fallback...")
+                    result = analyze_full_pdf([str(f) for f in image_files])
+    else:
+        # Fallback: use pre-converted images
+        pdf_dir = PDF_IMAGES_DIR / request.pdf_name
+        
+        if not pdf_dir.exists():
+            raise HTTPException(status_code=404, detail=f"PDF not found: {request.pdf_name}")
+        
+        image_files = sorted(pdf_dir.glob("page_*.png"))
+        
+        if not image_files:
+            raise HTTPException(status_code=404, detail="No images found for this PDF")
+        
+        print(f"Using image-based analysis: {len(image_files)} pages")
+        result = analyze_full_pdf([str(f) for f in image_files])
+    
+    if "error" in result and not result.get("fallback_needed"):
+        raise HTTPException(status_code=500, detail=result["error"])
+    
     return result
 
 
