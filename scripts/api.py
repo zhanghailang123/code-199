@@ -1,0 +1,449 @@
+"""
+MEM Study System - FastAPI Backend
+Provides REST API for question and knowledge point CRUD operations.
+"""
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from typing import Optional, List
+import os
+import yaml
+from pathlib import Path
+
+# Configuration
+CONTENT_DIR = Path(__file__).parent.parent / "content"
+QUESTIONS_DIR = CONTENT_DIR / "questions"
+KNOWLEDGE_DIR = CONTENT_DIR / "knowledge_base"
+
+app = FastAPI(
+    title="MEM Study API",
+    description="Backend API for managing exam questions and knowledge points",
+    version="1.0.0"
+)
+
+# CORS for Vue frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ====== Data Models ======
+
+class QuestionCreate(BaseModel):
+    id: str
+    source: str = "管理类联考"
+    subject: str  # math, logic, english
+    type: str = "choice"
+    difficulty: int = 3
+    knowledge_points: List[str] = []
+    tags: List[str] = []
+    content: str  # 题目内容
+    options: str = ""  # 选项文本
+    answer: str = ""
+    explanation: str = ""
+
+class QuestionResponse(BaseModel):
+    id: str
+    subject: str
+    type: str
+    difficulty: int
+    raw: str  # Full markdown content
+
+class KnowledgePointCreate(BaseModel):
+    id: str
+    title: str
+    category: str  # math, logic, english
+    importance: str = "medium"
+    related: List[str] = []
+    core_concept: str = ""
+    common_types: str = ""
+    pitfalls: str = ""
+
+
+# ====== Helper Functions ======
+
+def generate_question_md(q: QuestionCreate) -> str:
+    """Generate markdown content from question data."""
+    frontmatter = {
+        "id": q.id,
+        "source": q.source,
+        "subject": q.subject,
+        "type": q.type,
+        "difficulty": q.difficulty,
+        "knowledge_points": q.knowledge_points,
+        "tags": q.tags
+    }
+    
+    yaml_content = yaml.dump(frontmatter, allow_unicode=True, default_flow_style=False)
+    
+    md_content = f"""---
+{yaml_content.strip()}
+---
+
+## 题目
+{q.content}
+
+## 选项
+{q.options}
+
+## 答案
+{q.answer}
+
+## 解析
+{q.explanation}
+"""
+    return md_content
+
+
+def generate_knowledge_md(kp: KnowledgePointCreate) -> str:
+    """Generate markdown content from knowledge point data."""
+    frontmatter = {
+        "id": kp.id,
+        "title": kp.title,
+        "category": kp.category,
+        "importance": kp.importance,
+        "related": kp.related
+    }
+    
+    yaml_content = yaml.dump(frontmatter, allow_unicode=True, default_flow_style=False)
+    
+    md_content = f"""---
+{yaml_content.strip()}
+---
+
+## 核心概念
+{kp.core_concept}
+
+## 常见题型
+{kp.common_types}
+
+## 易错点
+{kp.pitfalls}
+"""
+    return md_content
+
+
+def list_questions() -> List[dict]:
+    """List all questions from the questions directory."""
+    questions = []
+    if QUESTIONS_DIR.exists():
+        for file in QUESTIONS_DIR.glob("*.md"):
+            questions.append({
+                "id": file.stem,
+                "path": str(file)
+            })
+    return questions
+
+
+# ====== API Endpoints ======
+
+@app.get("/")
+def root():
+    return {"message": "MEM Study API", "version": "1.0.0"}
+
+
+@app.get("/api/questions")
+def get_questions():
+    """List all questions."""
+    questions = list_questions()
+    return {"questions": questions, "total": len(questions)}
+
+
+@app.post("/api/questions")
+def create_question(question: QuestionCreate):
+    """Create a new question."""
+    file_path = QUESTIONS_DIR / f"{question.id}.md"
+    
+    if file_path.exists():
+        raise HTTPException(status_code=400, detail=f"Question {question.id} already exists")
+    
+    # Generate markdown
+    md_content = generate_question_md(question)
+    
+    # Ensure directory exists
+    QUESTIONS_DIR.mkdir(parents=True, exist_ok=True)
+    
+    # Write file
+    file_path.write_text(md_content, encoding="utf-8")
+    
+    return {"message": "Question created successfully", "id": question.id, "path": str(file_path)}
+
+
+@app.get("/api/questions/{question_id}")
+def get_question(question_id: str):
+    """Get a single question by ID."""
+    file_path = QUESTIONS_DIR / f"{question_id}.md"
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"Question {question_id} not found")
+    
+    content = file_path.read_text(encoding="utf-8")
+    return {"id": question_id, "raw": content}
+
+
+@app.delete("/api/questions/{question_id}")
+def delete_question(question_id: str):
+    """Delete a question by ID."""
+    file_path = QUESTIONS_DIR / f"{question_id}.md"
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"Question {question_id} not found")
+    
+    file_path.unlink()
+    return {"message": f"Question {question_id} deleted successfully"}
+
+
+@app.post("/api/knowledge")
+def create_knowledge_point(kp: KnowledgePointCreate):
+    """Create a new knowledge point."""
+    category_dir = KNOWLEDGE_DIR / kp.category
+    file_path = category_dir / f"{kp.id}.md"
+    
+    if file_path.exists():
+        raise HTTPException(status_code=400, detail=f"Knowledge point {kp.id} already exists")
+    
+    # Generate markdown
+    md_content = generate_knowledge_md(kp)
+    
+    # Ensure directory exists
+    category_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Write file
+    file_path.write_text(md_content, encoding="utf-8")
+    
+    return {"message": "Knowledge point created successfully", "id": kp.id, "path": str(file_path)}
+
+
+@app.get("/api/knowledge")
+def get_knowledge_points():
+    """List all knowledge points."""
+    kps = []
+    if KNOWLEDGE_DIR.exists():
+        for category_dir in KNOWLEDGE_DIR.iterdir():
+            if category_dir.is_dir():
+                for file in category_dir.glob("*.md"):
+                    kps.append({
+                        "id": file.stem,
+                        "category": category_dir.name,
+                        "path": str(file)
+                    })
+    return {"knowledge_points": kps, "total": len(kps)}
+
+
+# ====== LLM Analysis Endpoint ======
+
+class AnalyzeRequest(BaseModel):
+    question_text: str
+
+@app.post("/api/analyze")
+def analyze_question_endpoint(request: AnalyzeRequest):
+    """
+    Analyze a raw question using LLM.
+    Returns structured question data (subject, answer, explanation, etc.)
+    """
+    from llm_analyzer import analyze_question
+    
+    if not request.question_text.strip():
+        raise HTTPException(status_code=400, detail="Question text is required")
+    
+    result = analyze_question(request.question_text)
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "Analysis failed"))
+    
+    return result
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)
+
+
+# ====== Knowledge Graph Endpoint ======
+
+import re
+
+def parse_frontmatter(content: str) -> dict:
+    """Parse YAML frontmatter from markdown content."""
+    match = re.match(r'^---\r?\n([\s\S]*?)\r?\n---', content)
+    if not match:
+        return {}
+    
+    meta = {}
+    current_key = None
+    
+    for line in match.group(1).split('\n'):
+        if line.strip().startswith('- '):
+            if current_key and current_key not in meta:
+                meta[current_key] = []
+            if current_key and isinstance(meta.get(current_key), list):
+                meta[current_key].append(line.strip()[2:])
+            continue
+        
+        if ':' in line:
+            key, value = line.split(':', 1)
+            key = key.strip()
+            value = value.strip()
+            current_key = key
+            if value:
+                meta[key] = value
+    
+    return meta
+
+
+@app.get("/api/graph")
+def get_knowledge_graph():
+    """
+    Generate knowledge graph data in Cytoscape.js format.
+    Nodes: Questions and Knowledge Points
+    Edges: Question -> Knowledge Point relationships
+    """
+    nodes = []
+    edges = []
+    kp_set = set()  # Track unique knowledge points
+    
+    # Process all questions
+    if QUESTIONS_DIR.exists():
+        for file in QUESTIONS_DIR.glob("*.md"):
+            content = file.read_text(encoding="utf-8")
+            meta = parse_frontmatter(content)
+            
+            q_id = file.stem
+            subject = 'math' if 'math' in q_id else 'logic' if 'logic' in q_id else 'english'
+            
+            # Add question node
+            nodes.append({
+                "data": {
+                    "id": q_id,
+                    "label": q_id.split('-')[-1].upper(),  # e.g., "Q01"
+                    "type": "question",
+                    "subject": subject,
+                    "difficulty": meta.get("difficulty", 3)
+                }
+            })
+            
+            # Process knowledge points
+            kps = meta.get("knowledge_points", [])
+            if isinstance(kps, list):
+                for kp in kps:
+                    kp_id = f"kp_{kp}"
+                    kp_set.add((kp_id, kp, subject))
+                    
+                    # Add edge
+                    edges.append({
+                        "data": {
+                            "id": f"{q_id}_to_{kp_id}",
+                            "source": q_id,
+                            "target": kp_id
+                        }
+                    })
+    
+    # Add knowledge point nodes
+    for kp_id, kp_name, subject in kp_set:
+        nodes.append({
+            "data": {
+                "id": kp_id,
+                "label": kp_name,
+                "type": "knowledge",
+                "subject": subject
+            }
+        })
+    
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "stats": {
+            "questions": len([n for n in nodes if n["data"]["type"] == "question"]),
+            "knowledge_points": len(kp_set)
+        }
+    }
+
+
+# ====== Curriculum Endpoints ======
+
+CURRICULUM_DIR = CONTENT_DIR / "curriculum"
+
+@app.get("/api/curriculum")
+def get_curriculum():
+    """Get all curriculum chapters grouped by subject."""
+    chapters = []
+    
+    if CURRICULUM_DIR.exists():
+        for subject_dir in CURRICULUM_DIR.iterdir():
+            if subject_dir.is_dir():
+                for file in subject_dir.glob("*.md"):
+                    content = file.read_text(encoding="utf-8")
+                    meta = parse_frontmatter(content)
+                    
+                    chapters.append({
+                        "id": meta.get("id", file.stem),
+                        "title": meta.get("title", file.stem),
+                        "subject": meta.get("subject", subject_dir.name),
+                        "order": int(meta.get("order", 99)),
+                        "status": meta.get("status", "not_started"),
+                        "estimated_hours": int(meta.get("estimated_hours", 0)),
+                        "knowledge_points": meta.get("knowledge_points", []),
+                        "related_questions": meta.get("related_questions", []),
+                        "path": str(file)
+                    })
+    
+    # Sort by subject then order
+    chapters.sort(key=lambda x: (x["subject"], x["order"]))
+    
+    return {
+        "chapters": chapters,
+        "total": len(chapters),
+        "by_subject": {
+            "math": len([c for c in chapters if c["subject"] == "math"]),
+            "logic": len([c for c in chapters if c["subject"] == "logic"]),
+            "english": len([c for c in chapters if c["subject"] == "english"])
+        }
+    }
+
+
+@app.get("/api/curriculum/{chapter_id}")
+def get_chapter(chapter_id: str):
+    """Get a single chapter by ID."""
+    if CURRICULUM_DIR.exists():
+        for subject_dir in CURRICULUM_DIR.iterdir():
+            if subject_dir.is_dir():
+                for file in subject_dir.glob("*.md"):
+                    content = file.read_text(encoding="utf-8")
+                    meta = parse_frontmatter(content)
+                    
+                    if meta.get("id") == chapter_id or file.stem == chapter_id:
+                        return {
+                            "id": meta.get("id", file.stem),
+                            "raw": content,
+                            "meta": meta
+                        }
+    
+    raise HTTPException(status_code=404, detail=f"Chapter {chapter_id} not found")
+
+
+class UpdateStatusRequest(BaseModel):
+    status: str  # not_started, in_progress, completed
+
+@app.put("/api/curriculum/{chapter_id}/status")
+def update_chapter_status(chapter_id: str, request: UpdateStatusRequest):
+    """Update chapter learning status."""
+    if CURRICULUM_DIR.exists():
+        for subject_dir in CURRICULUM_DIR.iterdir():
+            if subject_dir.is_dir():
+                for file in subject_dir.glob("*.md"):
+                    content = file.read_text(encoding="utf-8")
+                    meta = parse_frontmatter(content)
+                    
+                    if meta.get("id") == chapter_id or file.stem == chapter_id:
+                        # Update status in frontmatter
+                        new_content = content.replace(
+                            f"status: {meta.get('status', 'not_started')}",
+                            f"status: {request.status}"
+                        )
+                        file.write_text(new_content, encoding="utf-8")
+                        return {"message": "Status updated", "status": request.status}
+    
+    raise HTTPException(status_code=404, detail=f"Chapter {chapter_id} not found")

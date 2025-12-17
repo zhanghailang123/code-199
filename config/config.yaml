@@ -1,0 +1,12 @@
+# MEM Study System Configuration
+
+# OpenAI Compatible API Settings
+llm:
+  api_key: "sk-12312312312313131"  # Replace with your actual API key
+  base_url: "http://127.0.0.1:2048/v1"  # Or compatible provider (e.g., DeepSeek, Azure)
+  model: "gemini-2.5-pro"  # Recommended: gpt-4o-mini for cost efficiency
+
+# Application Settings
+app:
+  debug: true
+  content_dir: "../content"

@@ -1,0 +1,54 @@
+{
+    "New Question": {
+        "prefix": "new-question",
+        "body": [
+            "---",
+            "id: ${1:2024-math-q01}",
+            "source: ${2:2024年管理类联考}",
+            "subject: ${3|math,logic,english|}",
+            "type: ${4|choice,essay|}",
+            "difficulty: ${5|1,2,3,4,5|}",
+            "knowledge_points:",
+            "  - ${6:KP1}",
+            "tags:",
+            "  - ${7:Tag1}",
+            "---",
+            "",
+            "## 题目",
+            "$8",
+            "",
+            "## 选项",
+            "A.   B.   C.   D.   E. ",
+            "",
+            "## 答案",
+            "",
+            "",
+            "## 解析",
+            ""
+        ],
+        "description": "Create a new MEM exam question"
+    },
+    "New Knowledge Point": {
+        "prefix": "new-kp",
+        "body": [
+            "---",
+            "id: ${1:concept-id}",
+            "title: ${2:Title}",
+            "category: ${3|math,logic,english|}",
+            "importance: ${4|high,medium,low|}",
+            "related:",
+            "  - ",
+            "---",
+            "",
+            "## 核心概念",
+            "$5",
+            "",
+            "## 常见题型",
+            "1. ",
+            "",
+            "## 易错点",
+            "- "
+        ],
+        "description": "Create a new Knowledge Point"
+    }
+}
