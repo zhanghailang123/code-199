@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { marked } from 'marked'
+import MarkdownEditor from '../components/MarkdownEditor.vue'
 
 function parseFrontmatter(text) {
   const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/)
@@ -44,6 +45,44 @@ const loading = ref(true)
 const error = ref('')
 const rawContent = ref('')
 const subject = ref('unknown')
+const isEditing = ref(false)
+const saving = ref(false)
+
+async function saveContent() {
+  if (!rawContent.value) return
+  saving.value = true
+  
+  const id = route.params.id
+  const category = route.params.category
+  const routeName = route.name
+  
+  try {
+    let apiUrl = ''
+    if (routeName === 'knowledge' && category) {
+      apiUrl = `http://localhost:8000/api/knowledge/${category}/${id}/content`
+    } else {
+      apiUrl = `http://localhost:8000/api/questions/${id}/content`
+    }
+    
+    // Note: The API uses UpdateContentRequest(content: str) which expects JSON body { content: "..." }
+    const res = await fetch(apiUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: rawContent.value })
+    })
+    
+    if (!res.ok) throw new Error('保存失败')
+    
+    // Success
+    isEditing.value = false
+    await fetchContent() // Reload to re-parse
+    
+  } catch (e) {
+    alert('保存失败: ' + e.message)
+  } finally {
+    saving.value = false
+  }
+}
 
 async function fetchContent() {
   loading.value = true
@@ -155,13 +194,26 @@ const subjectLabel = computed(() => {
     <article class="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
       <!-- Hero Header -->
       <header class="relative bg-gradient-to-br from-slate-800 to-slate-900 text-white px-8 py-10">
-        <!-- Subject Badge -->
-        <div class="absolute top-6 right-6">
+        <!-- Subject Badge & Edit Button -->
+        <div class="absolute top-6 right-6 flex items-center gap-3">
+          <button @click="isEditing = !isEditing" 
+                  class="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-sm font-medium transition-colors backdrop-blur-sm border border-white/10 flex items-center gap-2">
+            <span>{{ isEditing ? '👁️ 预览' : '✏️ 编辑' }}</span>
+          </button>
+          
+          <button v-if="isEditing" 
+                  @click="saveContent" 
+                  :disabled="saving"
+                  class="px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-sm font-medium transition-colors shadow-lg flex items-center gap-2">
+            <span>{{ saving ? '保存中...' : '💾 保存' }}</span>
+          </button>
+
           <span class="px-4 py-2 rounded-full text-sm font-bold"
                 :class="{
                   'bg-red-500': subject === 'math',
                   'bg-amber-500': subject === 'logic', 
-                  'bg-green-500': subject === 'english'
+                  'bg-green-500': subject === 'english',
+                  'bg-slate-500': subject === 'unknown'
                 }">
             {{ subjectLabel }}
           </span>
@@ -194,8 +246,18 @@ const subjectLabel = computed(() => {
         </div>
       </header>
 
-      <!-- Content Sections -->
-      <div class="p-8 space-y-8">
+      <!-- Editor View -->
+      <div v-if="isEditing" class="p-0 bg-[#09090b]">
+        <MarkdownEditor 
+          v-model:value="rawContent" 
+          mode="split" 
+          :readonly="false"
+          class="min-h-[600px]"
+        />
+      </div>
+      
+      <!-- Content Sections (View Mode) -->
+      <div v-else class="p-8 space-y-8">
         <!-- Question Section -->
         <section v-if="parsed.sections['题目']" class="bg-blue-50 rounded-xl p-6 border-l-4 border-blue-500">
           <h2 class="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">

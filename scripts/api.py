@@ -62,6 +62,9 @@ class KnowledgePointCreate(BaseModel):
     common_types: str = ""
     pitfalls: str = ""
 
+class UpdateContentRequest(BaseModel):
+    content: str
+
 
 # ====== Helper Functions ======
 
@@ -196,6 +199,46 @@ def delete_question(question_id: str):
     return {"message": f"Question {question_id} deleted successfully"}
 
 
+@app.put("/api/questions/{question_id}")
+def update_question(question_id: str, question: QuestionCreate):
+    """
+    Update an existing question.
+    Overwrites the entire file content.
+    """
+    if question_id != question.id:
+        raise HTTPException(status_code=400, detail="Path ID does not match body ID")
+        
+    file_path = QUESTIONS_DIR / f"{question_id}.md"
+    
+    # Check if exists (not strictly necessary but good for 404)
+    if not file_path.exists():
+         raise HTTPException(status_code=404, detail=f"Question {question_id} not found")
+
+    # Generate markdown
+    md_content = generate_question_md(question)
+    
+    # Write file
+    file_path.write_text(md_content, encoding="utf-8")
+    
+    return {"message": "Question updated successfully", "id": question.id, "path": str(file_path)}
+
+
+@app.put("/api/questions/{question_id}/content")
+def update_question_content(question_id: str, request: UpdateContentRequest):
+    """
+    Update question raw content directly.
+    """
+    file_path = QUESTIONS_DIR / f"{question_id}.md"
+    
+    if not file_path.exists():
+         raise HTTPException(status_code=404, detail=f"Question {question_id} not found")
+
+    # Overwrite the file with new content
+    file_path.write_text(request.content, encoding="utf-8")
+    
+    return {"message": "Question content updated successfully", "id": question_id}
+
+
 @app.post("/api/knowledge")
 def create_knowledge_point(kp: KnowledgePointCreate):
     """Create a new knowledge point."""
@@ -215,6 +258,47 @@ def create_knowledge_point(kp: KnowledgePointCreate):
     file_path.write_text(md_content, encoding="utf-8")
     
     return {"message": "Knowledge point created successfully", "id": kp.id, "path": str(file_path)}
+
+
+@app.put("/api/knowledge/{category}/{kp_id}")
+def update_knowledge_point(category: str, kp_id: str, kp: KnowledgePointCreate):
+    """
+    Update an existing knowledge point.
+    """
+    if kp_id != kp.id:
+         raise HTTPException(status_code=400, detail="Path ID does not match body ID")
+
+    category_dir = KNOWLEDGE_DIR / category
+    file_path = category_dir / f"{kp_id}.md"
+    
+    if not file_path.exists():
+        # Try finding it if category changed? For now assume path matches
+        raise HTTPException(status_code=404, detail="Knowledge point not found")
+    
+    # Generate markdown
+    md_content = generate_knowledge_md(kp)
+    
+    # Write file
+    file_path.write_text(md_content, encoding="utf-8")
+    
+    return {"message": "Knowledge point updated successfully", "id": kp.id, "path": str(file_path)}
+
+
+@app.put("/api/knowledge/{category}/{kp_id}/content")
+def update_knowledge_content(category: str, kp_id: str, request: UpdateContentRequest):
+    """
+    Update knowledge point raw content directly.
+    """
+    category_dir = KNOWLEDGE_DIR / category
+    file_path = category_dir / f"{kp_id}.md"
+    
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Knowledge point not found")
+    
+    # Overwrite the file with new content
+    file_path.write_text(request.content, encoding="utf-8")
+    
+    return {"message": "Knowledge point content updated successfully", "id": kp_id}
 
 
 @app.get("/api/knowledge")
@@ -485,6 +569,27 @@ def update_chapter_status(chapter_id: str, request: UpdateStatusRequest):
     raise HTTPException(status_code=404, detail=f"Chapter {chapter_id} not found")
 
 
+class UpdateContentRequest(BaseModel):
+    content: str
+
+@app.put("/api/curriculum/{chapter_id}/content")
+def update_chapter_content(chapter_id: str, request: UpdateContentRequest):
+    """Update chapter raw content."""
+    if CURRICULUM_DIR.exists():
+        for subject_dir in CURRICULUM_DIR.iterdir():
+            if subject_dir.is_dir():
+                for file in subject_dir.glob("*.md"):
+                    content = file.read_text(encoding="utf-8")
+                    meta = parse_frontmatter(content)
+                    
+                    if meta.get("id") == chapter_id or file.stem == chapter_id:
+                        # Overwrite the file with new content
+                        file.write_text(request.content, encoding="utf-8")
+                        return {"message": "Content updated"}
+    
+    raise HTTPException(status_code=404, detail=f"Chapter {chapter_id} not found")
+
+
 # ====== PDF Upload Endpoints ======
 
 from fastapi import File, UploadFile
@@ -731,3 +836,9 @@ knowledge_points:
             })
             
     return {"results": results}
+
+
+if __name__ == "__main__":
+    import uvicorn
+    print("Starting MEM Study API on http://localhost:8000")
+    uvicorn.run(app, host="0.0.0.0", port=8000)
