@@ -1,7 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-// import { marked } from 'marked' // No longer needed
+import { marked } from 'marked'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
 
 const router = useRouter()
@@ -139,6 +139,12 @@ async function saveChapter() {
   }
 }
 
+function closeDetail() {
+  selectedChapter.value = null
+  chapterContent.value = null
+  isEditing.value = false
+}
+
 // Handle Custom Link Clicks (Delegate)
 function handleEditorClick(e) {
   // ByteMD renders markdown. We need to handle internal links if possible.
@@ -162,14 +168,86 @@ function handleEditorClick(e) {
   // IF I want to keep the custom badge links active.
   // The Editor "Preview" pane might show them as text.
   // 
-  // Let's stick to using ByteMD for both Edit and View for consistency, 
-  // BUT I lose the custom link feature unless I write a plugin.
-  // 
-  // Compromise: Use ByteMD for EDITING. Use my custom `marked` renderer for VIEWING (Read-only).
-  // When Editing, you see raw markdown.
   // Compromise: Use ByteMD for EDITING. Use my custom `marked` renderer for VIEWING (Read-only).
   // When Editing, you see raw markdown.
 }
+
+// Render markdown with [[id]] links converted to clickable spans
+function renderWithLinks(mdContent) {
+  // First convert markdown to HTML
+  let html = marked(mdContent)
+  
+  // Then convert [[id]] syntax to clickable spans
+  // Pattern: [[some-question-id]]
+  html = html.replace(/\[\[([^\]]+)\]\]/g, (match, id) => {
+    return `<span class="question-link" data-question-id="${id}">${id}</span>`
+  })
+  
+  return html
+}
+
+// Handle clicks on content area (event delegation for question links)
+function handleContentClick(event) {
+  const target = event.target
+  if (target.classList.contains('question-link')) {
+    const questionId = target.dataset.questionId
+    if (questionId) {
+      // Close the modal first
+      closeDetail()
+      // Navigate to question detail
+      router.push({ name: 'question', params: { id: questionId } })
+    }
+  }
+}
+
+// Parse markdown content for rich view
+const parsedChapter = computed(() => {
+  if (!chapterContent.value) return null
+  
+  // Basic frontmatter parsing
+  const text = chapterContent.value
+  const fmMatch = text.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n([\s\S]*)$/)
+  
+  let content = text
+  if (fmMatch) {
+    content = fmMatch[2]
+  }
+  
+  // Split into Main Sections by H2 headers using a more robust method
+  const sections = {}
+  
+  // Split by lines starting with "## "
+  const lines = content.split(/\r?\n/)
+  let currentSection = null
+  let currentBody = []
+  
+  for (const line of lines) {
+    if (line.startsWith('## ')) {
+      // Save previous section
+      if (currentSection) {
+        sections[currentSection] = currentBody.join('\n').trim()
+      }
+      // Start new section
+      currentSection = line.replace('## ', '').trim()
+      currentBody = []
+    } else if (currentSection) {
+      currentBody.push(line)
+    }
+  }
+  
+  // Save last section
+  if (currentSection) {
+    sections[currentSection] = currentBody.join('\n').trim()
+  }
+  
+  // Fallback: full HTML if no sections matched
+  const fullHtml = marked(content)
+  
+  return {
+    sections,
+    fullHtml
+  }
+})
 
 onMounted(() => {
   loadCurriculum()
@@ -315,21 +393,125 @@ onMounted(() => {
         
         <!-- Editor / Viewer Area -->
         <div class="flex-1 overflow-hidden relative bg-[#09090b]">
+           <!-- MODE: EDIT -->
            <MarkdownEditor 
-              v-if="chapterContent"
+              v-if="isEditing"
               v-model:value="chapterContent"
-              :mode="isEditing ? 'split' : 'split'" 
-              :readonly="!isEditing"
+              mode="split" 
+              :readonly="false"
               class="h-full"
            />
+           
+           <!-- MODE: VIEW (Rich Styled) -->
+           <div v-else-if="parsedChapter" @click="handleContentClick" class="h-full overflow-y-auto p-8 space-y-8 scrollbar-custom">
+             
+             <!-- Learning Objectives (Using known section name '学习目标') -->
+             <section v-if="parsedChapter.sections['学习目标']" class="bg-indigo-500/5 rounded-xl p-6 border-l-4 border-indigo-500">
+               <h3 class="text-lg font-bold text-indigo-400 mb-4 flex items-center gap-2">
+                 <span class="text-2xl">🎯</span> 学习目标
+               </h3>
+               <div class="prose-content text-zinc-300 leading-relaxed" v-html="marked(parsedChapter.sections['学习目标'])"></div>
+             </section>
+             
+             <!-- Core Content (Using known section name '核心内容') -->
+             <section v-if="parsedChapter.sections['核心内容']" class="bg-zinc-800/40 rounded-xl p-8 border border-white/5 shadow-sm">
+                <h3 class="text-xl font-bold text-blue-200 mb-6 flex items-center gap-3">
+                 <span class="text-2xl">📚</span> 核心内容
+               </h3>
+               <div class="prose-content text-zinc-200 leading-relaxed" v-html="marked(parsedChapter.sections['核心内容'])"></div>
+             </section>
+             
+             <!-- Learning Advice (Using known section name '学习建议') -->
+             <section v-if="parsedChapter.sections['学习建议']" class="bg-amber-500/10 rounded-xl p-6 border-l-4 border-amber-500/50">
+               <h3 class="text-lg font-bold text-amber-300 mb-4 flex items-center gap-2">
+                 <span class="text-2xl">💡</span> 学习建议
+               </h3>
+               <div class="prose-content text-zinc-300" v-html="marked(parsedChapter.sections['学习建议'])"></div>
+             </section>
+             
+             <!-- Other Sections (Dynamic rendering for non-hardcoded sections) -->
+             <template v-for="(body, title) in parsedChapter.sections" :key="title">
+               <section 
+                 v-if="!['学习目标', '核心内容', '学习建议'].includes(title)"
+                 class="bg-zinc-800/30 rounded-xl p-6 border border-white/5"
+               >
+                 <h3 class="text-lg font-bold text-zinc-200 mb-4 flex items-center gap-2">
+                   <span class="text-2xl">📄</span> {{ title }}
+                 </h3>
+                 <div class="prose-content text-zinc-300" v-html="renderWithLinks(body)"></div>
+               </section>
+             </template>
+             
+             <!-- Fallback: Just show full HTML if no specific sections matched -->
+             <div v-if="Object.keys(parsedChapter.sections).length === 0" 
+                  class="prose-content text-zinc-300" 
+                  v-html="parsedChapter.fullHtml">
+             </div>
+           </div>
         </div>
         
-        <!-- Footer -->
-        <!-- ... -->
+        <!-- Footer (Hidden/None) -->
       </div>
     </div>
   </div>
 </template>
+
+<style>
+/* Global Prose Styles for Dynamic Content */
+.prose-content h3, .prose-content h4 {
+  color: #e2e8f0; /* zinc-200 */
+  font-weight: 700;
+  margin-top: 1.5em;
+  margin-bottom: 0.75em;
+  font-size: 1.1rem;
+}
+
+.prose-content ul, .prose-content ol {
+  margin-left: 1.5rem;
+  margin-bottom: 1rem;
+  list-style-type: disc;
+}
+
+.prose-content ol {
+  list-style-type: decimal;
+}
+
+.prose-content li {
+  margin-bottom: 0.5rem;
+  color: #d4d4d8; /* zinc-300 */
+}
+
+.prose-content p {
+  margin-bottom: 1em;
+  line-height: 1.7;
+}
+
+.prose-content strong {
+  color: #fff;
+  font-weight: 600;
+}
+
+.prose-content blockquote {
+  border-left: 4px solid #3b82f6;
+  padding-left: 1rem;
+  font-style: italic;
+  color: #94a3b8;
+  margin: 1.5rem 0;
+}
+
+/* Clickable Question Links [[id]] */
+.question-link {
+  color: #60a5fa; /* blue-400 */
+  text-decoration: underline;
+  cursor: pointer;
+  font-weight: 500;
+  transition: color 0.15s ease;
+}
+
+.question-link:hover {
+  color: #93c5fd; /* blue-300 */
+}
+</style>
 
 <style scoped>
 .animate-fade-in {

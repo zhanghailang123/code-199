@@ -97,8 +97,12 @@ const locale = {
 
 <style>
 /* Override ByteMD styles for Dark Theme */
+.bytemd-wrapper {
+  height: 100%;
+}
+
 .bytemd {
-  height: 500px; /* Default height */
+  height: 100% !important; /* Inherit from parent instead of fixed height */
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 8px;
   overflow: hidden;

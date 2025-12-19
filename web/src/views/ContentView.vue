@@ -252,7 +252,7 @@ const subjectLabel = computed(() => {
           v-model:value="rawContent" 
           mode="split" 
           :readonly="false"
-          class="min-h-[600px]"
+          class="h-[calc(100vh-280px)] min-h-[600px]"
         />
       </div>
       

@@ -568,10 +568,7 @@ def update_chapter_status(chapter_id: str, request: UpdateStatusRequest):
     
     raise HTTPException(status_code=404, detail=f"Chapter {chapter_id} not found")
 
-
-class UpdateContentRequest(BaseModel):
-    content: str
-
+# 
 @app.put("/api/curriculum/{chapter_id}/content")
 def update_chapter_content(chapter_id: str, request: UpdateContentRequest):
     """Update chapter raw content."""
