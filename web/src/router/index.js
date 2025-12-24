@@ -48,6 +48,11 @@ const router = createRouter({
             path: '/knowledge/:category/:id',
             name: 'knowledge',
             component: () => import('../views/ContentView.vue')
+        },
+        {
+            path: '/vocabulary',
+            name: 'vocabulary',
+            component: () => import('../views/VocabularyView.vue')
         }
     ]
 })

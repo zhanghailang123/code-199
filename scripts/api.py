@@ -336,6 +336,144 @@ def get_knowledge_detail(category: str, kp_id: str):
     }
 
 
+# --- Vocabulary API ---
+from typing import Optional, List, Dict, Any
+from pathlib import Path
+import yaml
+
+class VocabularyItem(BaseModel):
+    id: str
+    word: str
+    phonetic: Optional[str] = None
+    tags: List[str] = []
+    status: str = "learning" # not_started, learning, mastered
+    definitions: List[Dict[str, Any]] = [] # [{part: "v.", text: "...", translation: "..."}]
+    related_questions: List[str] = []
+    content: Optional[str] = None # Markdown body
+
+def parse_vocabulary_file(file_path: Path) -> Optional[VocabularyItem]:
+    try:
+        content = file_path.read_text(encoding="utf-8")
+        if content.startswith("---"):
+            parts = content.split("---", 2)
+            if len(parts) >= 3:
+                frontmatter = yaml.safe_load(parts[1])
+                if frontmatter and 'id' in frontmatter and 'word' in frontmatter:
+                    return VocabularyItem(
+                        **frontmatter,
+                        content=parts[2].strip()
+                    )
+        
+        # Fallback: create basic item from filename
+        word = file_path.stem  # filename without extension
+        return VocabularyItem(
+            id=f"vocab-{word.lower()}",
+            word=word,
+            phonetic=None,
+            tags=[],
+            status="learning",
+            definitions=[],
+            related_questions=[],
+            content=content
+        )
+    except Exception as e:
+        print(f"Error parsing vocabulary {file_path}: {e}")
+    return None
+
+@app.get("/api/vocabulary")
+async def list_vocabulary():
+    vocab_dir = CONTENT_DIR / "vocabulary"
+    items = []
+    
+    if not vocab_dir.exists():
+        return {"items": []}
+        
+    # Walk all subject subdirectories
+    for file_path in vocab_dir.rglob("*.md"):
+        item = parse_vocabulary_file(file_path)
+        if item:
+            # Don't send full content in list view for performance
+            item.content = None 
+            items.append(item)
+            
+    return {"items": items}
+
+@app.get("/api/vocabulary/{id}")
+async def get_vocabulary(id: str):
+    # Search for the file in all subdirs
+    vocab_dir = CONTENT_DIR / "vocabulary"
+    found_path = None
+    
+    for file_path in vocab_dir.rglob(f"*.md"):
+        # Check if ID in frontmatter matches (safest) or filename
+        # For speed let's assume filename ~ ID or we parse.
+        # Ideally we index this. For now, linear scan is okay for small sets.
+        item = parse_vocabulary_file(file_path)
+        if item and item.id == id:
+            found_path = file_path
+            return item
+            
+    if not found_path:
+        raise HTTPException(status_code=404, detail="Vocabulary not found")
+
+class CreateVocabularyRequest(BaseModel):
+    id: str
+    word: str
+    category: str = "english" # Default folder
+
+@app.post("/api/vocabulary")
+async def create_vocabulary(req: CreateVocabularyRequest):
+    vocab_dir = CONTENT_DIR / "vocabulary" / req.category
+    vocab_dir.mkdir(parents=True, exist_ok=True)
+    
+    file_path = vocab_dir / f"{req.word}.md"
+    if file_path.exists():
+        raise HTTPException(status_code=400, detail="Word already exists")
+        
+    # Template
+    content = f"""---
+id: {req.id}
+word: "{req.word}"
+phonetic: ""
+tags: []
+status: "learning"
+definitions:
+  - part: ""
+    text: ""
+    translation: ""
+related_questions: []
+---
+
+## 记忆法
+
+## 例句
+
+## 解析
+"""
+    file_path.write_text(content, encoding="utf-8")
+    return {"success": True, "id": req.id}
+
+class UpdateVocabularyRequest(BaseModel):
+    content: str # Full raw content
+
+@app.put("/api/vocabulary/{id}")
+async def update_vocabulary(id: str, req: UpdateVocabularyRequest):
+    vocab_dir = CONTENT_DIR / "vocabulary"
+    found_path = None
+    
+    # Find file
+    for file_path in vocab_dir.rglob("*.md"):
+        item = parse_vocabulary_file(file_path)
+        if item and item.id == id:
+            found_path = file_path
+            break
+    
+    if not found_path:
+        raise HTTPException(status_code=404, detail="Vocabulary not found")
+        
+    found_path.write_text(req.content, encoding="utf-8")
+    return {"success": True}
+
 
 class AnalyzeRequest(BaseModel):
     question_text: str

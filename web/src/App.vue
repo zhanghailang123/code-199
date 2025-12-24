@@ -59,6 +59,9 @@ function clearError() {
           <router-link to="/curriculum" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 font-medium hover:bg-white/5 hover:text-white transition-all" active-class="!bg-blue-600/20 !text-blue-100 !border !border-blue-500/20 shadow-sm shadow-blue-500/10">
             <span>📚</span> 学习路径
           </router-link>
+          <router-link to="/vocabulary" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 font-medium hover:bg-white/5 hover:text-white transition-all" active-class="!bg-blue-600/20 !text-blue-100 !border !border-blue-500/20 shadow-sm shadow-blue-500/10">
+            <span>🔤</span> 单词本
+          </router-link>
         </div>
       </nav>
 
