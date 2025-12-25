@@ -5,14 +5,15 @@ import VocabularyDetail from '../components/VocabularyDetail.vue'
 
 const router = useRouter()
 const loading = ref(true)
+const isCreating = ref(false) // New state for button-level loading
 const items = ref([])
 const searchQuery = ref('')
 const selectedItem = ref(null)
 const selectedTag = ref('all')
 
 // Load vocabulary
-async function loadVocabulary() {
-  loading.value = true
+async function loadVocabulary(silent = false) {
+  if (!silent) loading.value = true
   try {
     const res = await fetch('http://localhost:8000/api/vocabulary')
     const data = await res.json()
@@ -98,7 +99,7 @@ async function createWord() {
   
   const id = 'vocab-' + word.toLowerCase().replace(/[^a-z0-9]/g, '-')
   
-  loading.value = true // Show loading state
+  isCreating.value = true
   
   try {
     const res = await fetch('http://localhost:8000/api/vocabulary', {
@@ -113,17 +114,17 @@ async function createWord() {
     })
     
     if (res.ok) {
-        await loadVocabulary()
+        await loadVocabulary(true) // Silent refresh
         // Find the new item and open it
         const newItem = items.value.find(i => i.id === id)
         if (newItem) selectedItem.value = newItem
     } else {
         alert('创建失败，可能单词已存在')
-        loading.value = false
     }
   } catch (e) {
     alert('创建失败: ' + e.message)
-    loading.value = false
+  } finally {
+    isCreating.value = false
   }
 }
 
@@ -168,8 +169,14 @@ onMounted(() => {
              >
              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none">🔍</span>
           </div>
-          <button @click="createWord" class="btn btn-primary whitespace-nowrap px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg shadow-blue-500/20">
-            <span>+</span> 新单词
+          <button 
+            @click="createWord" 
+            :disabled="isCreating"
+            class="btn btn-primary whitespace-nowrap px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <div v-if="isCreating" class="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"></div>
+            <span v-else>+</span> 
+            {{ isCreating ? '生成中...' : '新单词' }}
           </button>
         </div>
       </div>
@@ -298,7 +305,7 @@ onMounted(() => {
     <VocabularyDetail 
        v-if="selectedItem" 
        :item="selectedItem" 
-       @close="selectedItem = null; loadVocabulary()" 
+       @close="selectedItem = null; loadVocabulary(true)" 
     />
   </div>
 </template>

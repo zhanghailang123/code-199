@@ -381,7 +381,7 @@ def parse_vocabulary_file(file_path: Path) -> Optional[VocabularyItem]:
     return None
 
 @app.get("/api/vocabulary")
-async def list_vocabulary():
+def list_vocabulary():
     vocab_dir = CONTENT_DIR / "vocabulary"
     items = []
     
@@ -399,7 +399,7 @@ async def list_vocabulary():
     return {"items": items}
 
 @app.get("/api/vocabulary/{id}")
-async def get_vocabulary(id: str):
+def get_vocabulary(id: str):
     # Search for the file in all subdirs
     vocab_dir = CONTENT_DIR / "vocabulary"
     found_path = None
@@ -423,7 +423,7 @@ class CreateVocabularyRequest(BaseModel):
     auto_generate: bool = False # New flag
 
 @app.post("/api/vocabulary")
-async def create_vocabulary(req: CreateVocabularyRequest):
+def create_vocabulary(req: CreateVocabularyRequest):
     vocab_dir = CONTENT_DIR / "vocabulary" / req.category
     vocab_dir.mkdir(parents=True, exist_ok=True)
     
@@ -468,7 +468,7 @@ class UpdateVocabularyRequest(BaseModel):
     content: str # Full raw content
 
 @app.put("/api/vocabulary/{id}")
-async def update_vocabulary(id: str, req: UpdateVocabularyRequest):
+def update_vocabulary(id: str, req: UpdateVocabularyRequest):
     vocab_dir = CONTENT_DIR / "vocabulary"
     found_path = None
     
