@@ -94,7 +94,8 @@ function updateHeights() {
   
   if (!body) return
 
-  const totalHeight = wrapper.offsetHeight
+  const isFullscreen = wrapper.querySelector('.bytemd-fullscreen') !== null
+  const totalHeight = isFullscreen ? window.innerHeight : wrapper.offsetHeight
   const toolbarHeight = toolbar ? toolbar.offsetHeight : 0
   const statusHeight = status ? status.offsetHeight : 0
   const availableHeight = totalHeight - toolbarHeight - statusHeight
