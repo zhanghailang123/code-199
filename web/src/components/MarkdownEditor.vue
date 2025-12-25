@@ -1,4 +1,5 @@
 <script setup>
+import { ref, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { Editor, Viewer } from '@bytemd/vue-next'
 import gfm from '@bytemd/plugin-gfm'
 import highlight from '@bytemd/plugin-highlight'
@@ -75,10 +76,76 @@ const locale = {
 //   h1: '一级标题',
   // ... can add more chinese localization
 }
+
+const editorWrapper = ref(null)
+let resizeObserver = null
+
+// Robust Layout Refresher using ResizeObserver
+function updateHeights() {
+  if (!editorWrapper.value) return
+  
+  const wrapper = editorWrapper.value
+  const toolbar = wrapper.querySelector('.bytemd-toolbar')
+  const status = wrapper.querySelector('.bytemd-status')
+  const body = wrapper.querySelector('.bytemd-body')
+  const codeMirror = wrapper.querySelector('.CodeMirror')
+  const scroller = wrapper.querySelector('.CodeMirror-scroll')
+  const preview = wrapper.querySelector('.bytemd-preview')
+  
+  if (!body) return
+
+  const totalHeight = wrapper.offsetHeight
+  const toolbarHeight = toolbar ? toolbar.offsetHeight : 0
+  const statusHeight = status ? status.offsetHeight : 0
+  const availableHeight = totalHeight - toolbarHeight - statusHeight
+
+  if (availableHeight > 0) {
+    body.style.setProperty('height', `${availableHeight}px`, 'important')
+    if (codeMirror) codeMirror.style.setProperty('height', `${availableHeight}px`, 'important')
+    if (scroller) scroller.style.setProperty('height', `${availableHeight}px`, 'important')
+    if (preview) preview.style.setProperty('height', `${availableHeight}px`, 'important')
+    
+    // Refresh CodeMirror instance
+    const cmElement = wrapper.querySelector('.CodeMirror')
+    if (cmElement && cmElement.CodeMirror) {
+      cmElement.CodeMirror.refresh()
+    }
+  }
+}
+
+onMounted(() => {
+  nextTick(() => {
+    // Initial refresh and layout calculation
+    updateHeights()
+    window.dispatchEvent(new Event('resize'))
+    
+    // Set up observer to handle all future layout changes (animations, resizes)
+    if (window.ResizeObserver && editorWrapper.value) {
+      resizeObserver = new ResizeObserver(() => {
+        updateHeights()
+      })
+      resizeObserver.observe(editorWrapper.value)
+    }
+    
+    // Fallback pulse for the first 2 seconds to handle library initialization
+    const pulse = setInterval(updateHeights, 200)
+    setTimeout(() => clearInterval(pulse), 2000)
+  })
+})
+
+onUnmounted(() => {
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+  }
+})
+
+watch(() => props.value, () => {
+  nextTick(updateHeights)
+})
 </script>
 
 <template>
-  <div class="bytemd-wrapper" :class="{ 'is-readonly': readonly }">
+  <div ref="editorWrapper" class="bytemd-wrapper" :class="{ 'is-readonly': readonly }">
     <Viewer 
       v-if="readonly"
       :value="value" 
@@ -99,23 +166,38 @@ const locale = {
 /* Override ByteMD styles for Dark Theme */
 /* Next-Gen ByteMD Theme Overrides */
 .bytemd-wrapper {
-  height: 100%;
+  position: relative;
+  height: 100% !important;
+  width: 100% !important;
+  max-height: 100vh !important;
 }
 
+/* Main container - Filled by parent grid/flex */
 .bytemd {
+  position: absolute !important;
+  inset: 0 !important;
   height: 100% !important;
+  width: 100% !important;
   border: none !important;
   border-radius: 0 !important;
   background: transparent !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  box-sizing: border-box !important;
+  pointer-events: auto !important; /* Ensure capture */
+  min-height: 400px; /* Safety minimum */
 }
 
 /* --- Toolbar --- */
 .bytemd-toolbar {
+  flex: 0 0 auto !important;
   background-color: #09090b !important; /* Zinc 950 */
   border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
   padding: 0.5rem 1rem !important;
-  flex-shrink: 0;
-  /* height: auto !important; */ 
+  width: 100%;
+  position: relative;
+  z-index: 20;
 }
 
 .bytemd-toolbar-icon {
@@ -140,15 +222,25 @@ const locale = {
 
 /* --- Body (Container) --- */
 .bytemd-body {
+  flex: 1 1 0% !important;
+  min-height: 0 !important;
   background-color: #09090b !important;
-  /* Do not force flex overrides, trust bytemd layout, just ensure it fills height */
-  height: 100% !important; 
+  position: relative !important; /* Context for absolute children */
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: stretch !important;
+  overflow: hidden !important;
 }
 
-/* --- Editor (Left Pane) - Light Mode for Clarity --- */
+/* --- Editor (Left Pane) --- */
 .bytemd-editor {
-  /* Let CodeMirror handle sizing */
+  flex: 1 1 50% !important; 
+  min-width: 0 !important;
+  min-height: 0 !important;
+  position: relative !important;
   height: 100% !important;
+  overflow: hidden !important;
+  pointer-events: auto !important;
 }
 
 /* Fallback & CM Styling */
@@ -162,40 +254,60 @@ const locale = {
   background-color: #ffffff !important;
   color: #0f172a !important; /* Slate 900 - High Contrast */
   font-family: 'JetBrains Mono', Consolas, Monaco, 'Andale Mono', monospace !important;
-  font-size: 15px !important; /* Slightly larger for clarity */
+  font-size: 15px !important;
   line-height: 1.7 !important;
+  height: 100% !important; /* Managed by JS Pulse/Observer */
+  width: 100% !important;
+}
+
+/* RECURSIVE HEIGHT FORCE - Base for Observer */
+.bytemd-editor, .bytemd-editor > div, .bytemd-editor .CodeMirror {
   height: 100% !important;
+  min-height: 0 !important;
 }
 
-.CodeMirror-gutters {
-  background-color: #f8fafc !important; /* Slate 50 */
-  border-right: 1px solid #e2e8f0 !important;
+/* CRITICAL: Force CodeMirror internal scrollbar visibility */
+.CodeMirror-vscrollbar {
+  display: block !important;
+  width: 12px !important;
+  z-index: 100 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
-.CodeMirror-linenumber {
-  color: #cbd5e1 !important; /* Slate 300 */
+.CodeMirror-scroll {
+  height: 100% !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  margin-bottom: 0 !important;
+  margin-right: 0 !important;
+  padding-bottom: 0 !important;
 }
 
-.CodeMirror-cursor {
-  border-left: 2px solid #2563eb !important; /* Blue 600 */
-}
-
-.CodeMirror-selected {
-  background-color: rgba(37, 99, 235, 0.15) !important;
+.CodeMirror-sizer {
+  min-height: 100% !important;
+  padding-bottom: 100px !important; /* Buffer for scrolling */
+  box-sizing: border-box !important;
 }
 
 /* --- Preview (Right Pane) --- */
 .bytemd-preview {
+  flex: 1 1 50% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  position: relative !important;
   height: 100% !important;
   overflow-y: auto !important;
   padding-bottom: 100px !important;
+  background-color: #0c0c0e !important;
 }
 
 .bytemd-split .bytemd-preview {
   border-left: 1px solid rgba(255, 255, 255, 0.05) !important;
   background-color: #0c0c0e !important; 
-  padding: 2rem 3rem !important; 
+  padding: 1.5rem !important; 
   padding-bottom: 8rem !important; 
+  pointer-events: auto !important;
 }
 
 .markdown-body {
@@ -203,6 +315,7 @@ const locale = {
   color: #e4e4e7 !important;
   line-height: 1.8 !important;
   font-size: 16px !important;
+  max-width: none !important; /* Allow full width */
 }
 
 /* Typography matching VocabularyDetail */
@@ -264,34 +377,60 @@ const locale = {
 
 /* --- Status Bar --- */
 .bytemd-status {
+  grid-row: 3;
   border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
   background-color: #09090b !important;
   color: #52525b !important;
   font-size: 12px !important;
   padding: 4px 16px !important;
+  width: 100%;
 }
 
-/* --- Scrollbars --- */
+/* --- Scrollbars - Make them VISIBLE --- */
+/* --- Scrollbars - Make them VISIBLE --- */
+/* Chrome/Webkit/Edgium */
 .bytemd-editor ::-webkit-scrollbar,
-.bytemd-preview ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+.bytemd-preview ::-webkit-scrollbar,
+.CodeMirror-vscrollbar ::-webkit-scrollbar {
+  width: 12px !important;
+  height: 12px !important;
+  display: block !important;
 }
 
 .bytemd-editor ::-webkit-scrollbar-track,
-.bytemd-preview ::-webkit-scrollbar-track {
-  background: transparent;
+.bytemd-preview ::-webkit-scrollbar-track,
+.CodeMirror-vscrollbar ::-webkit-scrollbar-track {
+  background: #27272a !important; /* Dark track */
 }
 
 .bytemd-editor ::-webkit-scrollbar-thumb,
-.bytemd-preview ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
+.bytemd-preview ::-webkit-scrollbar-thumb,
+.CodeMirror-vscrollbar ::-webkit-scrollbar-thumb {
+  background: #3b82f6 !important; /* Brighter Blue for visibility testing */
+  border-radius: 6px !important;
+  border: 2px solid #27272a !important;
 }
 
 .bytemd-editor ::-webkit-scrollbar-thumb:hover,
-.bytemd-preview ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+.bytemd-preview ::-webkit-scrollbar-thumb:hover,
+.CodeMirror-vscrollbar ::-webkit-scrollbar-thumb:hover {
+  background: #a1a1aa !important; /* Zinc 400 */
+}
+
+/* Forcing CodeMirror native scrollbars to look alike if they exist as DOM nodes */
+.CodeMirror-vscrollbar, .CodeMirror-hscrollbar {
+  display: block !important;
+  z-index: 10 !important; 
+}
+
+/* Fullscreen Override - Fix Sidebar Overlap */
+.bytemd-fullscreen {
+  z-index: 9999 !important; /* Above everything */
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
 }
 
 /* --- Frontmatter Container Stylish --- */

@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { marked } from 'marked'
 import MarkdownEditor from './MarkdownEditor.vue'
 
@@ -141,13 +141,37 @@ async function cycleStatus() {
     rawContent.value = buildRawFile(localItem.value)
     await autoSaveTags()
 }
+
+// Sync isEditing with layout
+watch(isEditing, () => {
+    nextTick(() => {
+        window.dispatchEvent(new Event('resize'));
+    });
+})
+
+// Body Scroll Lock & Modal Logic
+onMounted(() => {
+  document.body.classList.add('is-modal-open')
+  document.documentElement.classList.add('is-modal-open')
+  
+  nextTick(() => {
+    window.dispatchEvent(new Event('resize'));
+  });
+})
+
+onUnmounted(() => {
+  document.body.classList.remove('is-modal-open')
+  document.documentElement.classList.remove('is-modal-open')
+})
 </script>
 
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" @click.self="$emit('close')">
-    <div class="bg-[#09090b] w-full max-w-4xl h-[90vh] rounded-2xl flex flex-col border border-zinc-800 shadow-2xl overflow-hidden animate-fade-in relative">
+  <div class="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-hidden" 
+       @click.self="$emit('close')"
+       @wheel.stop>
+    <div class="bg-[#09090b] w-full max-w-6xl h-[90vh] max-h-[90vh] rounded-2xl grid grid-rows-[auto_1fr] border border-zinc-800 shadow-2xl overflow-hidden animate-fade-in relative">
       
-      <!-- Header -->
+      <!-- Header (Row 1) -->
       <div class="p-6 border-b border-zinc-800 bg-zinc-900/50 flex justify-between items-start">
          <div v-if="localItem" class="flex-1">
             <h2 class="text-4xl font-extrabold text-white font-serif tracking-tight mb-1">{{ localItem.word }}</h2>
@@ -202,28 +226,31 @@ async function cycleStatus() {
          </div>
       </div>
 
-      <!-- Definitions (View Mode only) -->
-      <div v-if="!isEditing && localItem && localItem.definitions" class="px-8 py-6 bg-zinc-900/30 border-b border-zinc-800/50">
-         <div v-for="(def, i) in localItem.definitions" :key="i" class="mb-2">
-            <span class="text-blue-400 font-bold italic mr-2 text-lg">{{ def.part }}</span>
-            <span class="text-zinc-200 text-lg">{{ def.translation }}</span>
-            <div class="text-zinc-500 text-sm ml-8">{{ def.text }}</div>
+      <!-- Main Container (Row 2) -->
+      <div class="min-h-0 flex flex-col overflow-hidden relative">
+         <!-- Definitions (View Mode only) -->
+         <div v-if="!isEditing && localItem && localItem.definitions" class="flex-none px-8 py-4 bg-zinc-900/30 border-b border-zinc-800/50 overflow-y-auto max-h-[30%]">
+            <div v-for="(def, i) in localItem.definitions" :key="i" class="mb-2">
+               <span class="text-blue-400 font-bold italic mr-2 text-lg">{{ def.part }}</span>
+               <span class="text-zinc-200 text-lg">{{ def.translation }}</span>
+               <div class="text-zinc-500 text-sm ml-8">{{ def.text }}</div>
+            </div>
          </div>
-      </div>
 
-      <!-- Main Content Area -->
-      <div class="flex-1 overflow-hidden bg-[#09090b]">
-         <!-- Editor -->
-         <MarkdownEditor 
-            v-if="isEditing" 
-            v-model:value="rawContent" 
-            mode="split"
-            class="h-full"
-         />
+         <!-- Editor/Content Area -->
+         <div class="flex-1 min-h-0 overflow-hidden bg-[#09090b] relative">
+            <!-- Editor -->
+            <MarkdownEditor 
+               v-if="isEditing" 
+               v-model:value="rawContent" 
+               mode="split"
+               class="absolute inset-0 w-full h-full"
+            />
 
-         <!-- Rich View -->
-         <div v-else class="h-full overflow-y-auto p-8 prose-content scrollbar-custom">
-            <div v-if="parsedView" v-html="parsedView.html"></div>
+            <!-- Rich View -->
+            <div v-else class="h-full overflow-y-auto p-8 prose-content scrollbar-custom">
+               <div v-if="parsedView" v-html="parsedView.html"></div>
+            </div>
          </div>
       </div>
 
@@ -232,6 +259,22 @@ async function cycleStatus() {
 </template>
 
 <style>
+/* Global scroll lock classes - Nuclear Background Freeze */
+html.is-modal-open, 
+body.is-modal-open {
+  overflow: hidden !important;
+  height: 100vh !important;
+  position: fixed !important;
+  width: 100% !important;
+  touch-action: none;
+  -webkit-overflow-scrolling: none;
+}
+
+/* Modal Overlay should allow clicking content but block wheel to background */
+.is-modal-open .fixed.inset-0 {
+    pointer-events: auto;
+}
+
 /* Comprehensive Prose Styling for Vocabulary Detail */
 .prose-content {
     color: #d4d4d8;

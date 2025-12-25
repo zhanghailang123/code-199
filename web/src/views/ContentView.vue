@@ -121,7 +121,7 @@ const subjectLabel = computed(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-[#09090b] text-zinc-200">
+  <div class="h-screen overflow-hidden bg-[#09090b] text-zinc-200">
     <!-- Navbar -->
     <nav class="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-40">
       <div class="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -187,7 +187,7 @@ const subjectLabel = computed(() => {
        </header>
 
        <!-- Content Body -->
-       <div class="flex-1 overflow-hidden relative">
+       <div class="flex-1 overflow-hidden relative min-h-0">
           <!-- Loading State -->
           <div v-if="loading" class="absolute inset-0 flex items-center justify-center">
              <div class="w-8 h-8 border-2 border-zinc-600 border-t-zinc-200 rounded-full animate-spin"></div>
@@ -198,7 +198,7 @@ const subjectLabel = computed(() => {
             v-if="isEditing" 
             v-model:value="rawContent" 
             mode="split"
-            class="h-full"
+            class="absolute inset-0" 
           />
           
           <!-- View Mode -->
