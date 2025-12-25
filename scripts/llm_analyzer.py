@@ -330,6 +330,201 @@ def batch_analyze_questions(questions: list) -> list:
         return results
 
 
+
+VOCABULARY_FRONTMATTER_PROMPT = """你是一个专业的考研词汇助手。请根据用户提供的单词笔记内容，提取并生成 YAML Frontmatter 信息。
+
+用户提供的笔记内容：
+{content}
+
+请提取以下信息并返回 JSON 格式：
+1. word: 单词本身（从内容中推断）
+2. phonetic: 单词的国际音标（IPA），必须生成
+3. definitions: 定义列表，包含 part(词性), translation(简短释义), text(详细释义/英文释义)
+4. tags: 标签列表（基于内容推断，如：考研, 阅读, 写作, 高频等）
+5. status: 默认为 "learning"
+
+要求：
+- id 生成格式为 "vocab-" + 单词小写
+- definitions 中的 translation 要简练
+- phonetic 必须提供，例如 "/ˈskræpɪŋ/"
+- 返回纯 JSON 格式，不要包含 ```json 包裹
+
+示例返回：
+{{
+  "id": "vocab-scrapping",
+  "word": "Scrapping",
+  "phonetic": "/ˈskræpɪŋ/",
+  "tags": ["考研", "阅读"],
+  "status": "learning",
+  "definitions": [
+    {{ "part": "v.", "translation": "废除", "text": "废除，取消；扔掉" }}
+  ],
+  "related_questions": []
+}}
+"""
+
+def generate_vocabulary_frontmatter(content: str) -> str:
+    """
+    Generate YAML frontmatter for vocabulary content using LLM.
+    
+    Args:
+        content: The raw markdown content of the vocabulary note
+        
+    Returns:
+        String containing the YAML frontmatter (including --- separators)
+    """
+    client = get_client()
+    model = get_model()
+    
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "你是一个辅助生成 Markdown Frontmatter 的工具。"},
+                {"role": "user", "content": VOCABULARY_FRONTMATTER_PROMPT.format(content=content[:2000])} # Limit context
+            ],
+            temperature=0.3
+        )
+        
+        json_str = response.choices[0].message.content.strip()
+        
+        # Clean up potential markdown blocks
+        if json_str.startswith("```"):
+            import re
+            match = re.search(r'```(?:json)?\s*([\s\S]*?)```', json_str)
+            if match:
+                json_str = match.group(1).strip()
+        
+        import json
+        data = json.loads(json_str)
+        
+        # Convert to YAML manually to match specific format requirements
+        lines = ["---"]
+        lines.append(f'id: "{data.get("id", "")}"')
+        lines.append(f'word: "{data.get("word", "")}"')
+        lines.append(f'phonetic: "{data.get("phonetic", "")}"')
+        
+        # Tags
+        tags = data.get("tags", [])
+        tags_str = ", ".join([f'"{t}"' for t in tags])
+        lines.append(f'tags: [{tags_str}]')
+        
+        lines.append(f'status: "{data.get("status", "learning")}"')
+        
+        # Definitions - Flatten to single line style if possible, or standard flow
+        defs = data.get("definitions", [])
+        import json as j
+        # Use JSON stringify for the list of dicts to match user preference: definitions: [{"part":...}]
+        # But ensure it's valid YAML. JSON is valid YAML.
+        lines.append(f'definitions: {j.dumps(defs, ensure_ascii=False)}')
+        
+        lines.append('related_questions: []')
+        lines.append('---')
+        lines.append('')
+        
+        return "\n".join(lines)
+        
+    except Exception as e:
+        print(f"Error generating frontmatter: {e}")
+        # Fallback minimal frontmatter
+        return "---\nid: vocab-unknown\nword: Unknown\nstatus: learning\n---\n"
+
+
+VOCABULARY_ARTICLE_PROMPT = """你是一位资深的考研英语辅导名师，讲课风格风趣幽默，直击痛点，擅长用最直观的逻辑帮学生死磕核心词汇。
+
+请为单词 "{word}" 撰写一篇考研风格的深度单词笔记。
+
+### 风格要求：
+1.  **语气**：像面对面辅导一样，开篇要直接（"考研党你好！"），中间要穿插鼓励和警示（"千万别搞混..."，"这是拿分的关键！"）。
+2.  **排版**：严格遵守 Markdown 格式，使用 **粗体** 强调重点，使用 > 引用块展示例句。
+3.  **结构**：必须包含以下五个部分（标题要完全一致）：
+    -   开篇引入（一两句话，直击单词在考研中的地位或常见误区）
+    -   ### 一、 核心记忆锚点（Root & Logic）
+    -   ### 二、 考研核心考法（The "Killer" Meaning）
+    -   ### 三、 考研“视觉陷阱”警报（Visual Trap） (如果有形近词/易混词，没有则跳过)
+    -   ### 四、 考研写作替换（Writing Upgrade）
+    -   ### 五、 沉浸式记忆（Scenario）
+    -   结尾鼓励（一句话总结）
+
+### 内容要求：
+1.  **Frontmatter**：文章开头必须包含标准的 YAML Frontmatter（id, word, phonetic, tags, status, definitions, related_questions）。
+2.  **Definitions 格式**：definitions 列表中的每一项必须严格包含以下字段：
+    -   `part`: 词性（如 v., adj., n.）
+    -   `translation`: 简短中文释义（用于列表显示）
+    -   `text`: 详细释义（可包含英文或扩展）
+    -   ❌ **禁止使用** `part_of_speech` 或 `meaning` 此类字段名。
+3.  **Tags**：自动推断标签，如 ["考研", "阅读", "高频"]。
+4.  **真题模拟**：在"考研核心考法"中，必须编造或引用一句类似于考研真题的例句，并附带解析。
+5.  **写作替换**：提供 Low Level vs High Level 的对比。
+6.  **音标**：必须包含 IPA 音标。
+
+### 示例参考：
+(Frontmatter...)
+考研党你好！看到 **Scrapping** 这个词，千万别以为是“刮擦”...
+### 一、 核心记忆锚点（Root & Logic）
+...
+
+### 重要提示：
+-   **直接输出 Markdown 内容**，不要用 ```markdown 或 ``` 包含整个回复。
+-   确保第一行是 `---`。
+-   确保 Frontmatter 格式正确。
+
+请开始创作：
+"""
+
+def generate_vocabulary_article(word: str) -> str:
+    """
+    Generate a full vocabulary article with frontmatter using LLM.
+    
+    Args:
+        word: The word to generate content for
+        
+    Returns:
+        Full Markdown string
+    """
+    client = get_client()
+    model = get_model()
+    
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "你是一位考研英语名师。"},
+                {"role": "user", "content": VOCABULARY_ARTICLE_PROMPT.format(word=word)}
+            ],
+            temperature=0.7 # Slight creativity for tone
+        )
+        
+        content = response.choices[0].message.content.strip()
+        
+        # Clean up code blocks if present
+        # Fix: Regex should match ANY language identifier (e.g. yaml, markdown) and strip it
+        if content.startswith("```"):
+            import re
+            match = re.search(r'```(?:\w+)?\s*([\s\S]*?)```', content)
+            if match:
+                content = match.group(1).strip()
+        
+        # Ensure it starts with Frontmatter
+        if not content.startswith("---"):
+            # If the LLM returned just YAML logic without ---, or just text, we try to fix or wrap
+            # But likely if it's "yaml\n..." we already stripped "yaml" with regex if it was in fence. 
+            # If it was NOT in fence but started with "yaml", we handle that:
+            lines = content.split('\n')
+            if lines[0].strip().lower() == 'yaml':
+                content = '\n'.join(lines[1:]).strip()
+            
+            if not content.startswith("---"):
+                 # Force add wrapper if missing
+                 content = f"---\n{content}"
+                 # We might also need to close it if missing, but let's assume LLM follows format mostly
+                 
+        return content
+        
+    except Exception as e:
+        print(f"Error generating article: {e}")
+        # Fallback
+        return f"---\nid: vocab-{word.lower()}\nword: {word}\nstatus: learning\n---\n\n## Generation Failed\n\nError: {e}"
+
 if __name__ == "__main__":
-    # Test batch analyzer
     pass

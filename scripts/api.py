@@ -420,6 +420,7 @@ class CreateVocabularyRequest(BaseModel):
     id: str
     word: str
     category: str = "english" # Default folder
+    auto_generate: bool = False # New flag
 
 @app.post("/api/vocabulary")
 async def create_vocabulary(req: CreateVocabularyRequest):
@@ -429,9 +430,19 @@ async def create_vocabulary(req: CreateVocabularyRequest):
     file_path = vocab_dir / f"{req.word}.md"
     if file_path.exists():
         raise HTTPException(status_code=400, detail="Word already exists")
+    
+    if req.auto_generate:
+        print(f"Auto-generating article for {req.word}...")
+        from llm_analyzer import generate_vocabulary_article
+        content = generate_vocabulary_article(req.word)
         
-    # Template
-    content = f"""---
+        # Force overwrite ID to match system requirements
+        # Use regex to replace id: ... with correct id
+        import re
+        content = re.sub(r'^id:\s*.*$', f'id: "{req.id}"', content, flags=re.MULTILINE)
+    else:
+        # Template
+        content = f"""---
 id: {req.id}
 word: "{req.word}"
 phonetic: ""
@@ -471,8 +482,17 @@ async def update_vocabulary(id: str, req: UpdateVocabularyRequest):
     if not found_path:
         raise HTTPException(status_code=404, detail="Vocabulary not found")
         
-    found_path.write_text(req.content, encoding="utf-8")
-    return {"success": True}
+    final_content = req.content
+    
+    # Check if content has frontmatter
+    if not final_content.startswith("---"):
+        print(f"Frontmatter missing for {id}, generating with LLM...")
+        from llm_analyzer import generate_vocabulary_frontmatter
+        frontmatter = generate_vocabulary_frontmatter(final_content)
+        final_content = frontmatter + final_content
+        
+    found_path.write_text(final_content, encoding="utf-8")
+    return {"success": True, "id": id}
 
 
 class AnalyzeRequest(BaseModel):

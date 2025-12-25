@@ -2,18 +2,17 @@
 id: "vocab-scrapping"
 word: "Scrapping"
 phonetic: "/ˈskræpɪŋ/"
-tags: ["考研", "阅读"]
+tags: ["考研","阅读"]
 status: "learning"
-definitions: 
-  - part: "v."
-    text: "废除，取消；扔掉"
-    translation: "废除"
+definitions: [{"part":"v.","text":"废除，取消；扔掉","translation":"废除"}]
 related_questions: []
 ---
 
 考研党你好！看到 **Scrapping** 这个词，千万别以为是“刮擦”（那是 Scraping，少一个 p，读音也不同）。
 
 在考研英语（特别是涉及**政策调整、商业决策、环境保护**的文章）中，**Scrapping** 是一个非常强硬、非常决绝的词。
+
+> 好好学习！！！！
 
 ---
 

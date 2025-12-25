@@ -1,12 +1,13 @@
 ---
 id: "vocab-underlying"
 word: "Underlying"
-phonetic: ""
-tags: ["高频"]
+phonetic: "/ˌʌndərˈlaɪɪŋ/"
+tags: ["考研", "阅读", "写作", "高频"]
 status: "learning"
-definitions: [{"part":"","text":"","translation":""}]
+definitions: [{"part": "adj.", "translation": "根本的, 潜在的", "text": "指作为基础但通常不明显的原因、逻辑或假设。在考研语境中，常用来指现象背后的深层、根本或潜在的原因、逻辑或假设。"}]
 related_questions: []
 ---
+
 
 考研战友，你好！见到 **Underlying** 这个词，请立刻警觉起来。
 

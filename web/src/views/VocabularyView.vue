@@ -89,17 +89,27 @@ function scrollToLetter(letter) {
 }
 
 // Create new word
+// Create new word
 async function createWord() {
   const word = prompt('请输入单词拼写:')
   if (!word) return
   
+  const autoGenerate = confirm(`是否使用 AI 生成 "${word}" 的完整考研笔记？\n(包含记忆点、真题考法、易混词等，生成需约 10-20 秒)`)
+  
   const id = 'vocab-' + word.toLowerCase().replace(/[^a-z0-9]/g, '-')
+  
+  loading.value = true // Show loading state
   
   try {
     const res = await fetch('http://localhost:8000/api/vocabulary', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, word, category: 'english' })
+      body: JSON.stringify({ 
+          id, 
+          word, 
+          category: 'english',
+          auto_generate: autoGenerate
+      })
     })
     
     if (res.ok) {
@@ -109,9 +119,26 @@ async function createWord() {
         if (newItem) selectedItem.value = newItem
     } else {
         alert('创建失败，可能单词已存在')
+        loading.value = false
     }
   } catch (e) {
     alert('创建失败: ' + e.message)
+    loading.value = false
+  }
+}
+
+// Copy functionality
+const copiedId = ref(null)
+async function copyToClipboard(text, id, e) {
+  e.stopPropagation() // Prevent opening modal
+  try {
+    await navigator.clipboard.writeText(text)
+    copiedId.value = id
+    setTimeout(() => {
+      copiedId.value = null
+    }, 1500)
+  } catch (err) {
+    console.error('Failed to copy:', err)
   }
 }
 
@@ -132,13 +159,14 @@ onMounted(() => {
         
         <div class="flex items-center gap-3 w-full md:w-auto">
           <div class="relative flex-1 md:w-64">
-             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500">🔍</span>
              <input 
                v-model="searchQuery"
                type="text" 
-               placeholder="搜索单词或释义..." 
-               class="w-full bg-zinc-900 border border-zinc-700 rounded-xl py-2 pl-10 pr-4 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-zinc-600"
+               placeholder="搜索单词..." 
+               class="w-full bg-zinc-900 border border-zinc-700 rounded-xl py-2.5 pr-4 text-zinc-200 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder:text-zinc-600 shadow-inner"
+               style="padding-left: 3rem;"
              >
+             <span class="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none">🔍</span>
           </div>
           <button @click="createWord" class="btn btn-primary whitespace-nowrap px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg shadow-blue-500/20">
             <span>+</span> 新单词
@@ -208,7 +236,18 @@ onMounted(() => {
               
               <div class="relative">
                 <div class="flex justify-between items-start mb-2">
-                   <h3 class="text-xl font-bold text-white tracking-tight font-serif group-hover:text-blue-100 transition-colors">{{ item.word }}</h3>
+                   <div class="flex items-center gap-2">
+                       <h3 class="text-xl font-bold text-white tracking-tight font-serif group-hover:text-blue-100 transition-colors">{{ item.word }}</h3>
+                       <button 
+                         @click="(e) => copyToClipboard(item.word, item.id, e)"
+                         class="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-white/10 rounded flex items-center justify-center text-zinc-500 hover:text-white"
+                         :class="{ '!opacity-100 text-green-400': copiedId === item.id }"
+                         title="复制单词"
+                       >
+                         <span v-if="copiedId === item.id" class="text-xs">✓</span>
+                         <span v-else class="text-xs">📋</span>
+                       </button>
+                   </div>
                    <div class="flex items-center gap-2">
                      <span v-if="item.status === 'mastered'" class="w-2.5 h-2.5 rounded-full bg-green-500 shadow-lg shadow-green-500/50"></span>
                      <span v-else-if="item.status === 'learning'" class="w-2.5 h-2.5 rounded-full bg-amber-500 shadow-lg shadow-amber-500/50"></span>
