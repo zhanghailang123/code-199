@@ -2,6 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { marked } from 'marked'
+import { API_BASE } from '../config/api.js'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
 
 const router = useRouter()
@@ -37,7 +38,7 @@ async function loadCurriculum() {
   error.value = ''
   
   try {
-    const res = await fetch('http://localhost:8000/api/curriculum')
+    const res = await fetch(`${API_BASE}/api/curriculum`)
     if (!res.ok) throw new Error('无法加载课程')
     
     const data = await res.json()
@@ -56,7 +57,7 @@ async function loadChapter(chapter) {
   isEditing.value = false // Default to view mode
   
   try {
-    const res = await fetch(`http://localhost:8000/api/curriculum/${chapter.id}`)
+    const res = await fetch(`${API_BASE}/api/curriculum/${chapter.id}`)
     if (!res.ok) throw new Error('无法加载章节')
     
     const data = await res.json()
@@ -120,7 +121,7 @@ async function saveChapter() {
     // Okay, I will optimistically write the fetch call to `PUT /api/curriculum/{id}/content` 
     // and then go implement it in API.
     
-    const res = await fetch(`http://localhost:8000/api/curriculum/${selectedChapter.value.id}/content`, {
+    const res = await fetch(`${API_BASE}/api/curriculum/${selectedChapter.value.id}/content`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content: chapterContent.value })

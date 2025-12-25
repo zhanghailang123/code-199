@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { API_BASE } from '../config/api.js'
 
 // Reactive state for content
 const questions = ref([])
@@ -14,7 +15,7 @@ async function fetchContent() {
   
   try {
     // Fetch questions
-    const qRes = await fetch('http://localhost:8000/api/questions')
+    const qRes = await fetch(`${API_BASE}/api/questions`)
     if (qRes.ok) {
       const qData = await qRes.json()
       questions.value = qData.questions.map(q => ({
@@ -26,7 +27,7 @@ async function fetchContent() {
     }
     
     // Fetch knowledge points
-    const kpRes = await fetch('http://localhost:8000/api/knowledge')
+    const kpRes = await fetch(`${API_BASE}/api/knowledge`)
     if (kpRes.ok) {
       const kpData = await kpRes.json()
       knowledgePoints.value = kpData.knowledge_points.map(kp => ({

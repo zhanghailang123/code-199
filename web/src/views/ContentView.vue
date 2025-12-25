@@ -2,6 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { marked } from 'marked'
+import { API_BASE } from '../config/api.js'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
 
 const route = useRoute()
@@ -48,9 +49,9 @@ async function fetchContent() {
   try {
     let apiUrl = ''
     if (routeName === 'knowledge' && category) {
-      apiUrl = `http://localhost:8000/api/knowledge/${category}/${id}`
+      apiUrl = `${API_BASE}/api/knowledge/${category}/${id}`
     } else {
-      apiUrl = `http://localhost:8000/api/questions/${id}`
+      apiUrl = `${API_BASE}/api/questions/${id}`
     }
     
     const res = await fetch(apiUrl)
@@ -81,9 +82,9 @@ async function saveContent() {
   try {
     let apiUrl = ''
     if (routeName === 'knowledge' && category) {
-      apiUrl = `http://localhost:8000/api/knowledge/${category}/${id}/content`
+      apiUrl = `${API_BASE}/api/knowledge/${category}/${id}/content`
     } else {
-      apiUrl = `http://localhost:8000/api/questions/${id}/content`
+      apiUrl = `${API_BASE}/api/questions/${id}/content`
     }
     
     const res = await fetch(apiUrl, {

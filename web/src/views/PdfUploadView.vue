@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { API_BASE } from '../config/api.js'
 
 const loading = ref(false)
 const uploading = ref(false)
@@ -46,7 +47,7 @@ async function batchImportAll() {
     pendingQuestions.forEach(q => q.importing = true)
     
     // Call batch API
-    const res = await fetch('http://localhost:8000/api/pdf/batch-import', {
+    const res = await fetch(`${API_BASE}/api/pdf/batch-import`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -94,7 +95,7 @@ async function analyzeFullPdf() {
   error.value = ''
   
   try {
-    const res = await fetch('http://localhost:8000/api/pdf/analyze-full', {
+    const res = await fetch(`${API_BASE}/api/pdf/analyze-full`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -135,7 +136,7 @@ ${(question.options || []).join('\n')}
 科目：${question.subject || 'math'}
 `
     
-    const res = await fetch('http://localhost:8000/api/questions/analyze', {
+    const res = await fetch(`${API_BASE}/api/questions/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -170,7 +171,7 @@ const previewData = ref('')
 async function loadPdfs() {
   loading.value = true
   try {
-    const res = await fetch('http://localhost:8000/api/pdf/list')
+    const res = await fetch(`${API_BASE}/api/pdf/list`)
     if (res.ok) {
       const data = await res.json()
       pdfs.value = data.pdfs
@@ -194,7 +195,7 @@ async function uploadPdf(event) {
   formData.append('file', file)
   
   try {
-    const res = await fetch('http://localhost:8000/api/pdf/upload', {
+    const res = await fetch(`${API_BASE}/api/pdf/upload`, {
       method: 'POST',
       body: formData
     })
@@ -245,7 +246,7 @@ async function openPreview(imageName) {
   previewData.value = ''
   
   try {
-    const res = await fetch(`http://localhost:8000/api/pdf/${selectedPdf.value.name}/image/${imageName}`)
+    const res = await fetch(`${API_BASE}/api/pdf/${selectedPdf.value.name}/image/${imageName}`)
     if (res.ok) {
       const data = await res.json()
       previewData.value = data.image
@@ -281,7 +282,7 @@ async function analyzeSelected() {
   
   for (const imageName of selectedImages.value) {
     try {
-      const res = await fetch('http://localhost:8000/api/pdf/analyze-image', {
+      const res = await fetch(`${API_BASE}/api/pdf/analyze-image`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

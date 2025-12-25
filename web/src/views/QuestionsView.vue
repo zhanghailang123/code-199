@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { API_BASE } from '../config/api.js'
 
 const questions = ref([])
 const loading = ref(true)
@@ -12,7 +13,7 @@ async function fetchQuestions() {
   error.value = ''
   
   try {
-    const res = await fetch('http://localhost:8000/api/questions')
+    const res = await fetch(`${API_BASE}/api/questions`)
     if (res.ok) {
       const data = await res.json()
       questions.value = data.questions.map(q => ({

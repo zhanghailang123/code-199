@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { marked } from 'marked'
+import { API_BASE } from '../config/api.js'
 import MarkdownEditor from './MarkdownEditor.vue'
 
 const props = defineProps({
@@ -19,7 +20,7 @@ watch(() => props.item, async (newItem) => {
   if (newItem) {
     try {
       // Fetch full details including Markdown content
-      const res = await fetch(`http://localhost:8000/api/vocabulary/${newItem.id}`)
+      const res = await fetch(`${API_BASE}/api/vocabulary/${newItem.id}`)
       if (res.ok) {
         localItem.value = await res.json()
         // Reconstruct raw content for editor
@@ -57,7 +58,7 @@ function buildRawFile(data) {
 async function save() {
     saving.value = true
     try {
-        const res = await fetch(`http://localhost:8000/api/vocabulary/${props.item.id}`, {
+        const res = await fetch(`${API_BASE}/api/vocabulary/${props.item.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content: rawContent.value })
@@ -118,7 +119,7 @@ async function removeTag(idx) {
 
 async function autoSaveTags() {
     try {
-        await fetch(`http://localhost:8000/api/vocabulary/${props.item.id}`, {
+        await fetch(`${API_BASE}/api/vocabulary/${props.item.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content: rawContent.value })

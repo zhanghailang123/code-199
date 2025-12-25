@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { API_BASE } from '../config/api.js'
 import cytoscape from 'cytoscape'
 
 const router = useRouter()
@@ -30,7 +31,7 @@ async function loadGraph() {
   error.value = ''
   
   try {
-    const res = await fetch('http://localhost:8000/api/graph')
+    const res = await fetch(`${API_BASE}/api/graph`)
     if (!res.ok) throw new Error('无法加载图谱数据')
     
     const data = await res.json()

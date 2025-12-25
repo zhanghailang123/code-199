@@ -2,6 +2,7 @@
 LLM Analyzer Module
 Uses OpenAI-compatible API to analyze exam questions.
 """
+import os
 import yaml
 from pathlib import Path
 from openai import OpenAI
@@ -10,7 +11,17 @@ from openai import OpenAI
 CONFIG_PATH = Path(__file__).parent.parent / "config" / "config.yaml"
 
 def load_config():
-    """Load configuration from config.yaml"""
+    """Load configuration from environment variables or config.yaml"""
+    # Try environment variables first (for cloud deployment)
+    if os.environ.get("LLM_API_KEY"):
+        return {
+            "llm": {
+                "api_key": os.environ.get("LLM_API_KEY"),
+                "base_url": os.environ.get("LLM_BASE_URL", "https://api.openai.com/v1"),
+                "model": os.environ.get("LLM_MODEL", "gpt-4o-mini")
+            }
+        }
+    # Fall back to config file
     if CONFIG_PATH.exists():
         with open(CONFIG_PATH, "r", encoding="utf-8") as f:
             return yaml.safe_load(f)

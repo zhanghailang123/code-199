@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { API_BASE } from '../config/api.js'
 import VocabularyDetail from '../components/VocabularyDetail.vue'
 
 const router = useRouter()
@@ -15,7 +16,7 @@ const selectedTag = ref('all')
 async function loadVocabulary(silent = false) {
   if (!silent) loading.value = true
   try {
-    const res = await fetch('http://localhost:8000/api/vocabulary')
+    const res = await fetch(`${API_BASE}/api/vocabulary`)
     const data = await res.json()
     items.value = data.items
   } catch (e) {
@@ -102,7 +103,7 @@ async function createWord() {
   isCreating.value = true
   
   try {
-    const res = await fetch('http://localhost:8000/api/vocabulary', {
+    const res = await fetch(`${API_BASE}/api/vocabulary`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 

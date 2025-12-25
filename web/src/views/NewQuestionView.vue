@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { marked } from 'marked'
+import { API_BASE } from '../config/api.js'
 
 const router = useRouter()
 
@@ -57,7 +58,7 @@ async function submitForm() {
       tags: form.value.tags.split(',').map(s => s.trim()).filter(Boolean)
     }
     
-    const response = await fetch('http://localhost:8000/api/questions', {
+    const response = await fetch(`${API_BASE}/api/questions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
