@@ -2,25 +2,11 @@
 id: "vocab-ambiguous"
 word: "ambiguous"
 phonetic: "/æmˈbɪɡjuəs/"
-tags: ["考研", "阅读", "高频", "核心词汇"]
+tags: ["考研","阅读","高频","核心词汇"]
 status: "learning"
-confusables:
-  - word: "ambitious"
-    meaning: "有野心的"
-  - word: "ambivalent"
-    meaning: "（心情）矛盾的"
-synonyms:
-  - word: "vague"
-    meaning: "含糊的，不明确的"
-  - word: "unclear"
-    meaning: "不清楚的"
-  - word: "equivocal"
-    meaning: "模棱两可的（常指故意）"
-definitions:
-  - part: "adj."
-    translation: "模棱两可的，含糊不清的"
-    text: "open to more than one interpretation; having a double meaning; not clear or decided."
+definitions: [{"part":"adj.","translation":"模棱两可的，含糊不清的","text":"open to more than one interpretation; having a double meaning; not clear or decided."}]
 related_questions: []
+notes: [{"id":"note-1766745171728","anchor":"### 一、 核心记忆锚点（Root & Logic）","content":"测试我的笔记","created":"2025-12-26","updated":"2025-12-26"}]
 ---
 
 考研党你好！今天咱们要磕的这个词是 **ambiguous**。别看它长得老实，在阅读理解里，它就是出题人最爱的“烟雾弹”，专门用来迷惑那些基础不牢的同学。搞定它，你就等于拆掉了一颗定时炸弹！

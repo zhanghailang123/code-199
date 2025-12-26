@@ -360,6 +360,7 @@ class VocabularyItem(BaseModel):
     status: str = "learning" # not_started, learning, mastered
     definitions: List[Dict[str, Any]] = [] # [{part: "v.", text: "...", translation: "..."}]
     related_questions: List[str] = []
+    notes: List[Dict[str, Any]] = []  # [{anchor: "###...", content: "...", created: "...", updated: "..."}]
     content: Optional[str] = None # Markdown body
 
 def parse_vocabulary_file(file_path: Path) -> Optional[VocabularyItem]:

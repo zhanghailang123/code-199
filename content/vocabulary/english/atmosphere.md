@@ -2,28 +2,11 @@
 id: "vocab-atmosphere"
 word: "atmosphere"
 phonetic: "/ˈætməsfɪər/"
-tags: ["考研", "阅读", "高频", "写作"]
+tags: ["考研","阅读","高频","写作"]
 status: "learning"
-confusables:
-  - word: "hemisphere"
-    meaning: "半球"
-  - word: "sphere"
-    meaning: "球体；领域"
-synonyms:
-  - word: "ambience"
-    meaning: "（地方的）格调，氛围"
-  - word: "mood"
-    meaning: "情绪；气氛"
-  - word: "feeling"
-    meaning: "感觉；气氛"
-definitions:
-  - part: "n."
-    translation: "大气层；空气"
-    text: "the mixture of gases that surrounds a planet such as the earth"
-  - part: "n."
-    translation: "气氛；环境；格调"
-    text: "the mood or feeling that exists in a place and affects the people who are there"
+definitions: [{"part":"n.","translation":"大气层；空气","text":"the mixture of gases that surrounds a planet such as the earth"},{"part":"n.","translation":"气氛；环境；格调","text":"the mood or feeling that exists in a place and affects the people who are there"}]
 related_questions: []
+notes: [{"id":"note-1766744421398","anchor":"### 一、 核心记忆锚点（Root & Logic）","content":"该怎么记住呢\n\n真是的","created":"2025-12-26","updated":"2025-12-26"}]
 ---
 
 考研党你好！看到 atmosphere，你是不是只想到“大气层”？那可就太天真了！考研就喜欢在这种**熟词僻义**上给你挖坑，今天咱们就把这个词彻底拿捏，让它成为你的得分利器！

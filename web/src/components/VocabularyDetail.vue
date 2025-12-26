@@ -3,6 +3,7 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { marked } from 'marked'
 import { API_BASE } from '../config/api.js'
 import MarkdownEditor from './MarkdownEditor.vue'
+import NoteBubble from './NoteBubble.vue'
 
 const props = defineProps({
   item: { type: Object, required: true }
@@ -44,7 +45,8 @@ function buildRawFile(data) {
         tags: data.tags,
         status: data.status,
         definitions: data.definitions,
-        related_questions: data.related_questions
+        related_questions: data.related_questions,
+        notes: data.notes || []
     }
     // Simple YAML stringify
     let yamlStr = '---\n'
@@ -109,7 +111,6 @@ async function regenerate() {
 // Parse markdown for View Mode
 const parsedView = computed(() => {
     if (!rawContent.value) return null
-    // Reuse log similar to Curriculum but simpler
     const parts = rawContent.value.split(/---\r?\n/)
     if (parts.length < 3) return { body: marked(rawContent.value) }
     
@@ -118,6 +119,200 @@ const parsedView = computed(() => {
         html: marked(body)
     }
 })
+
+// Content ref for DOM manipulation
+const contentRef = ref(null)
+const activeNoteAnchor = ref(null)
+const activeNoteBubblePos = ref({ top: 0, left: 0 })
+
+// Inject note icons into headings after render
+function injectNoteIcons() {
+    if (!contentRef.value || isEditing.value) return
+    
+    nextTick(() => {
+        const headings = contentRef.value.querySelectorAll('h3')
+        headings.forEach((h3) => {
+            // Skip if already has icon
+            if (h3.querySelector('.note-icon-inline')) return
+            
+            const anchor = '### ' + h3.textContent.trim()
+            const hasNote = getNoteByAnchor(anchor)
+            
+            // Create wrapper for icon + tooltip
+            const wrapper = document.createElement('span')
+            wrapper.className = 'note-icon-wrapper'
+            wrapper.style.cssText = 'position: relative; display: inline-block; margin-left: 8px; vertical-align: middle;'
+            
+            // Create icon button
+            const iconBtn = document.createElement('button')
+            iconBtn.className = 'note-icon-inline'
+            iconBtn.innerHTML = hasNote ? '📝' : '➕'
+            iconBtn.title = hasNote ? '点击编辑笔记' : '添加笔记'
+            iconBtn.style.cssText = 'cursor: pointer; font-size: 14px; opacity: 0.6; transition: opacity 0.2s; background: none; border: none;'
+            
+            // Create hover tooltip for existing notes
+            let tooltip = null
+            if (hasNote) {
+                tooltip = document.createElement('div')
+                tooltip.className = 'note-hover-tooltip'
+                tooltip.innerHTML = `<div style="font-size:11px;color:#a1a1aa;margin-bottom:4px;">📝 笔记</div><div style="color:#e4e4e7;font-size:13px;white-space:pre-wrap;">${hasNote.content}</div><div style="font-size:10px;color:#52525b;margin-top:6px;">点击编辑</div>`
+                tooltip.style.cssText = 'display:none; position:absolute; top:100%; left:0; margin-top:8px; min-width:200px; max-width:300px; padding:12px; background:#18181b; border:1px solid #3f3f46; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.5); z-index:1000; pointer-events:none;'
+                wrapper.appendChild(tooltip)
+            }
+            
+            iconBtn.onmouseenter = () => {
+                iconBtn.style.opacity = '1'
+                if (tooltip) tooltip.style.display = 'block'
+            }
+            iconBtn.onmouseleave = () => {
+                iconBtn.style.opacity = '0.6'
+                if (tooltip) tooltip.style.display = 'none'
+            }
+            iconBtn.onclick = (e) => {
+                e.stopPropagation()
+                if (tooltip) tooltip.style.display = 'none'
+                const rect = h3.getBoundingClientRect()
+                const existingNote = getNoteByAnchor(anchor)
+                editingNoteContent.value = existingNote?.content || ''
+                activeNoteBubblePos.value = { top: rect.bottom + 10, left: rect.left }
+                activeNoteAnchor.value = anchor
+            }
+            
+            wrapper.appendChild(iconBtn)
+            h3.appendChild(wrapper)
+        })
+    })
+}
+
+// Watch for content changes and re-inject icons
+watch([parsedView, isEditing], () => {
+    if (!isEditing.value) {
+        setTimeout(injectNoteIcons, 100)
+    }
+})
+
+// Editing state for floating popup
+const editingNoteContent = ref('')
+
+// Close active note bubble
+function closeNoteBubble() {
+    activeNoteAnchor.value = null
+    editingNoteContent.value = ''
+}
+
+// Open note popup and load existing content
+function openNotePopup(anchor, rect) {
+    const existingNote = getNoteByAnchor(anchor)
+    editingNoteContent.value = existingNote?.content || ''
+    activeNoteBubblePos.value = { top: rect.bottom + 10, left: rect.left }
+    activeNoteAnchor.value = anchor
+}
+
+// Save current note from popup
+async function saveCurrentNote() {
+    if (!activeNoteAnchor.value || !editingNoteContent.value.trim()) return
+    
+    console.log('[Notes] Saving note:', activeNoteAnchor.value, editingNoteContent.value)
+    
+    await saveNote({
+        anchor: activeNoteAnchor.value,
+        content: editingNoteContent.value.trim()
+    })
+    
+    closeNoteBubble()
+    // Re-inject to update icons
+    setTimeout(() => {
+        // Clear existing icons first
+        if (contentRef.value) {
+            contentRef.value.querySelectorAll('.note-icon-inline').forEach(el => el.remove())
+        }
+        injectNoteIcons()
+    }, 200)
+}
+
+// Confirm and delete note
+async function confirmDeleteNote() {
+    if (!activeNoteAnchor.value) return
+    if (!confirm('确定删除这条笔记吗？')) return
+    
+    await deleteNote(activeNoteAnchor.value)
+    closeNoteBubble()
+    // Re-inject to update icons
+    setTimeout(() => {
+        if (contentRef.value) {
+            contentRef.value.querySelectorAll('.note-icon-inline').forEach(el => el.remove())
+        }
+        injectNoteIcons()
+    }, 200)
+}
+
+// Handle save from floating bubble (legacy, keeping for compatibility)
+async function handleNoteSave(data) {
+    await saveNote(data)
+    closeNoteBubble()
+    setTimeout(injectNoteIcons, 100)
+}
+
+// Handle delete from floating bubble (legacy)
+async function handleNoteDelete(anchor) {
+    await deleteNote(anchor)
+    closeNoteBubble()
+    setTimeout(injectNoteIcons, 100)
+}
+
+// Extract section anchors (headings) for notes
+const sectionAnchors = computed(() => {
+    if (!rawContent.value) return []
+    const headingMatch = rawContent.value.match(/^###\s+.+$/gm)
+    return headingMatch || []
+})
+
+// Get notes from localItem
+const notes = computed(() => localItem.value?.notes || [])
+
+// Find note by anchor
+function getNoteByAnchor(anchor) {
+    return notes.value.find(n => n.anchor === anchor)
+}
+
+// Save note
+async function saveNote({ anchor, content }) {
+    if (!localItem.value) return
+    
+    if (!localItem.value.notes) {
+        localItem.value.notes = []
+    }
+    
+    const existingIdx = localItem.value.notes.findIndex(n => n.anchor === anchor)
+    const noteData = {
+        id: existingIdx >= 0 ? localItem.value.notes[existingIdx].id : `note-${Date.now()}`,
+        anchor,
+        content,
+        created: existingIdx >= 0 ? localItem.value.notes[existingIdx].created : new Date().toISOString().split('T')[0],
+        updated: new Date().toISOString().split('T')[0]
+    }
+    
+    if (existingIdx >= 0) {
+        localItem.value.notes[existingIdx] = noteData
+    } else {
+        localItem.value.notes.push(noteData)
+    }
+    
+    rawContent.value = buildRawFile(localItem.value)
+    await autoSaveTags()
+}
+
+// Delete note
+async function deleteNote(anchor) {
+    if (!localItem.value?.notes) return
+    
+    const idx = localItem.value.notes.findIndex(n => n.anchor === anchor)
+    if (idx >= 0) {
+        localItem.value.notes.splice(idx, 1)
+        rawContent.value = buildRawFile(localItem.value)
+        await autoSaveTags()
+    }
+}
 
 // Tag Editor
 const newTagInput = ref('')
@@ -292,9 +487,48 @@ onUnmounted(() => {
             />
 
             <!-- Rich View -->
-            <div v-else class="h-full overflow-y-auto p-8 prose-content scrollbar-custom">
+            <div v-else ref="contentRef" class="h-full overflow-y-auto p-8 prose-content scrollbar-custom">
                <div v-if="parsedView" v-html="parsedView.html"></div>
             </div>
+            
+            <!-- Floating Note Popup (Direct Form) -->
+            <Teleport to="body">
+               <div 
+                  v-if="activeNoteAnchor"
+                  class="fixed inset-0 z-[2000] flex items-start justify-center pt-[20vh]"
+               >
+                  <div class="note-bubble-backdrop" @click="closeNoteBubble"></div>
+                  <div class="note-bubble-floating">
+                     <div class="note-bubble-header">
+                        <span class="text-sm text-zinc-300 font-medium">📝 {{ activeNoteAnchor.replace(/^###\s+/, '') }}</span>
+                        <button @click="closeNoteBubble" class="text-zinc-500 hover:text-white text-xl">×</button>
+                     </div>
+                     <textarea 
+                        v-model="editingNoteContent"
+                        placeholder="记录你的学习笔记..."
+                        rows="4"
+                        class="w-full p-3 bg-zinc-900 border border-zinc-700 rounded-lg text-zinc-200 text-sm resize-none focus:outline-none focus:border-blue-500"
+                        autofocus
+                     ></textarea>
+                     <div class="flex justify-between items-center mt-3">
+                        <button 
+                           v-if="getNoteByAnchor(activeNoteAnchor)"
+                           @click="confirmDeleteNote"
+                           class="text-red-400 text-sm hover:text-red-300"
+                        >🗑️ 删除</button>
+                        <span v-else></span>
+                        <div class="flex gap-2">
+                           <button @click="closeNoteBubble" class="px-4 py-2 text-sm text-zinc-400 hover:text-white">取消</button>
+                           <button 
+                              @click="saveCurrentNote"
+                              :disabled="!editingNoteContent.trim()"
+                              class="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-500 disabled:opacity-50"
+                           >保存</button>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+            </Teleport>
          </div>
       </div>
 
@@ -465,5 +699,33 @@ body.is-modal-open {
 
 .prose-content a:hover {
     color: #93c5fd;
+}
+
+/* Floating Note Bubble Styles */
+.note-bubble-floating {
+    background: #18181b;
+    border: 1px solid #3f3f46;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+    padding: 12px;
+    min-width: 300px;
+    max-width: 400px;
+    position: relative;
+    z-index: 2001;
+}
+
+.note-bubble-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid #27272a;
+}
+
+.note-bubble-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1999;
 }
 </style>

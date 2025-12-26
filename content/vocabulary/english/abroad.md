@@ -1,21 +1,14 @@
 ---
 id: "vocab-abroad"
-word: abroad
-phonetic: /əˈbrɔːd/
-tags: ["考研", "高频词", "副词", "阅读", "写作"]
+word: "abroad"
+phonetic: "/əˈbrɔːd/"
+tags: ["考研","高频词","副词","阅读","写作"]
 status: "active"
-definitions:
-  - part: "adv."
-    translation: "在国外，到海外"
-    text: "in or to a foreign country or countries."
-  - part: "adv."
-    translation: "（谣言、思想）传开，流传"
-    text: "out in the open; in circulation. (e.g., a rumor is abroad)"
-related_questions:
-  - "abroad 和 aboard 的区别是什么？"
-  - "go abroad 和 go to abroad 哪个是正确的？"
-  - "如何在考研写作中地道地使用 abroad？"
+definitions: [{"part":"adv.","translation":"在国外，到海外","text":"in or to a foreign country or countries."},{"part":"adv.","translation":"（谣言、思想）传开，流传","text":"out in the open; in circulation. (e.g., a rumor is abroad)"}]
+related_questions: ["abroad 和 aboard 的区别是什么？","go abroad 和 go to abroad 哪个是正确的？","如何在考研写作中地道地使用 abroad？"]
+notes: [{"id":"note-1766746352595","anchor":"### 一、 核心记忆锚点（Root & Logic）","content":"例假来了","created":"2025-12-26","updated":"2025-12-26"},{"id":"note-1766746498999","anchor":"### 二、 考研核心考法（The \"Killer\" Meaning）","content":"这是一个笔记的测试","created":"2025-12-26","updated":"2025-12-26"}]
 ---
+
 考研党你好！看到 **abroad**，你是不是觉得“不就是‘国外’嘛，闭着眼都认识”？当心！考研就专挑这种你最熟悉的“老朋友”下手，给你设下“熟词僻义”的陷阱！
 
 ### 一、 核心记忆锚点（Root & Logic）
