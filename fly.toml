@@ -1,0 +1,27 @@
+# Fly.io Configuration for MEM Study API
+# https://fly.io/docs/reference/configuration/
+
+app = "mem-study-api"
+primary_region = "hkg"  # Hong Kong (closest to China)
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[mounts]]
+  source = "content_data"
+  destination = "/app/content"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256
