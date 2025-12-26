@@ -84,8 +84,8 @@ async function submitForm() {
 <template>
   <div class="max-w-6xl mx-auto">
     <header class="mb-8">
-      <router-link to="/" class="text-slate-500 hover:text-slate-700 text-sm font-medium">← 返回仪表盘</router-link>
-      <h1 class="text-3xl font-extrabold text-slate-900 mt-2">新增题目</h1>
+      <router-link to="/" class="text-slate-400 hover:text-slate-200 text-sm font-medium">← 返回仪表盘</router-link>
+      <h1 class="text-3xl font-extrabold text-slate-100 mt-2">新增题目</h1>
     </header>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -103,41 +103,41 @@ async function submitForm() {
           <!-- Row: ID + Source -->
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1">题目 ID *</label>
+              <label class="block text-sm font-semibold text-slate-300 mb-1">题目 ID *</label>
               <input v-model="form.id" type="text" :placeholder="suggestedId + '01'"
-                class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                class="w-full px-3 py-2 border border-zinc-700 bg-zinc-800/50 text-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
             </div>
             <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1">来源</label>
+              <label class="block text-sm font-semibold text-slate-300 mb-1">来源</label>
               <input v-model="form.source" type="text"
-                class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                class="w-full px-3 py-2 border border-zinc-700 bg-zinc-800/50 text-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
             </div>
           </div>
 
           <!-- Row: Subject + Type + Difficulty -->
           <div class="grid grid-cols-3 gap-4">
             <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1">科目 *</label>
+              <label class="block text-sm font-semibold text-slate-300 mb-1">科目 *</label>
               <select v-model="form.subject"
-                class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                class="w-full px-3 py-2 border border-zinc-700 bg-zinc-800/50 text-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500">
                 <option value="math">数学</option>
                 <option value="logic">逻辑</option>
                 <option value="english">英语</option>
               </select>
             </div>
             <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1">题型</label>
+              <label class="block text-sm font-semibold text-slate-300 mb-1">题型</label>
               <select v-model="form.type"
-                class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                class="w-full px-3 py-2 border border-zinc-700 bg-zinc-800/50 text-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500">
                 <option value="choice">选择题</option>
                 <option value="fill">填空题</option>
                 <option value="essay">论述题</option>
               </select>
             </div>
             <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1">难度</label>
+              <label class="block text-sm font-semibold text-slate-300 mb-1">难度</label>
               <select v-model="form.difficulty"
-                class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                class="w-full px-3 py-2 border border-zinc-700 bg-zinc-800/50 text-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500">
                 <option :value="1">1 - 简单</option>
                 <option :value="2">2</option>
                 <option :value="3">3 - 中等</option>
@@ -149,43 +149,43 @@ async function submitForm() {
 
           <!-- Content -->
           <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-1">题目内容 *</label>
+            <label class="block text-sm font-semibold text-slate-300 mb-1">题目内容 *</label>
             <textarea v-model="form.content" rows="4" placeholder="请输入题目内容..."
-              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"></textarea>
+              class="w-full px-3 py-2 border border-zinc-700 bg-zinc-800/50 text-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"></textarea>
           </div>
 
           <!-- Options -->
           <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-1">选项</label>
+            <label class="block text-sm font-semibold text-slate-300 mb-1">选项</label>
             <textarea v-model="form.options" rows="5"
-              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"></textarea>
+              class="w-full px-3 py-2 border border-zinc-700 bg-zinc-800/50 text-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"></textarea>
           </div>
 
           <!-- Answer -->
           <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-1">答案</label>
+            <label class="block text-sm font-semibold text-slate-300 mb-1">答案</label>
             <input v-model="form.answer" type="text" placeholder="C"
-              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+              class="w-full px-3 py-2 border border-zinc-700 bg-zinc-800/50 text-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" />
           </div>
 
           <!-- Explanation -->
           <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-1">解析</label>
+            <label class="block text-sm font-semibold text-slate-300 mb-1">解析</label>
             <textarea v-model="form.explanation" rows="6" placeholder="解题步骤和技巧..."
-              class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"></textarea>
+              class="w-full px-3 py-2 border border-zinc-700 bg-zinc-800/50 text-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm"></textarea>
           </div>
 
           <!-- Tags -->
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1">知识点 (逗号分隔)</label>
+              <label class="block text-sm font-semibold text-slate-300 mb-1">知识点 (逗号分隔)</label>
               <input v-model="form.knowledge_points" type="text" placeholder="工程问题, 方程"
-                class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                class="w-full px-3 py-2 border border-zinc-700 bg-zinc-800/50 text-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" />
             </div>
             <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1">标签 (逗号分隔)</label>
+              <label class="block text-sm font-semibold text-slate-300 mb-1">标签 (逗号分隔)</label>
               <input v-model="form.tags" type="text" placeholder="高频, 易错"
-                class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500" />
+                class="w-full px-3 py-2 border border-zinc-700 bg-zinc-800/50 text-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500" />
             </div>
           </div>
 
@@ -199,7 +199,7 @@ async function submitForm() {
 
       <!-- Preview -->
       <div class="card p-6">
-        <h2 class="text-lg font-bold text-slate-800 mb-4 pb-3 border-b border-slate-100">实时预览</h2>
+        <h2 class="text-lg font-bold text-slate-200 mb-4 pb-3 border-b border-zinc-700">实时预览</h2>
         <div class="prose-content" v-html="previewHtml"></div>
       </div>
     </div>
@@ -208,21 +208,22 @@ async function submitForm() {
 
 <style scoped>
 .prose-content {
-  color: #334155;
+  color: #e2e8f0;
   line-height: 1.75;
 }
 
 .prose-content :deep(h2) {
   font-size: 1.1rem;
   font-weight: 700;
-  color: #0f172a;
+  color: #f8fafc;
   margin-top: 1.5rem;
   margin-bottom: 0.5rem;
   padding-bottom: 0.5rem;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid #3f3f46;
 }
 
 .prose-content :deep(p) {
   margin-bottom: 0.75rem;
+  color: #cbd5e1;
 }
 </style>

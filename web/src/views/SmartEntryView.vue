@@ -210,8 +210,10 @@ async function saveQuestion() {
       throw new Error(data.detail || '保存失败')
     }
     
-    success.value = '题目保存成功！'
-    setTimeout(() => router.push('/'), 1500)
+    success.value = '题目保存成功！正在跳转...'
+    // Navigate to the newly created question's detail page
+    const questionId = form.value.id
+    setTimeout(() => router.push(`/question/${questionId}`), 1000)
     
   } catch (e) {
     error.value = e.message
@@ -256,9 +258,9 @@ async function saveQuestion() {
       <!-- Subject Selection (always visible) -->
       <div class="mb-4">
         <label class="block text-sm font-semibold text-slate-600 mb-2">请先选择科目（可提高识别准确率）</label>
-        <div class="flex gap-2">
+        <div class="flex gap-2 flex-wrap">
           <button 
-            v-for="(label, key) in {math: '数学', logic: '逻辑', english: '英语'}"
+            v-for="(label, key) in {math: '数学', logic: '逻辑', english: '英语', writing: '写作'}"
             :key="key"
             @click="form.subject = key"
             class="px-4 py-2 rounded-lg text-sm font-medium border transition-all"

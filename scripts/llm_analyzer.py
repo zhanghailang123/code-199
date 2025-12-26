@@ -13,6 +13,7 @@ from prompts import (
     LOGIC_ANALYZE_PROMPT,
     ENGLISH_ANALYZE_PROMPT,
     GENERAL_ANALYZE_PROMPT,
+    WRITING_ANALYZE_PROMPT,
     VOCABULARY_ARTICLE_PROMPT
 )
 
@@ -80,6 +81,9 @@ def analyze_question_with_image(image_base64: str, subject: str = None, mime_typ
     elif subject == 'english':
         prompt = ENGLISH_ANALYZE_PROMPT.replace("{question_text}", "请识别图片中的英语题目内容，并进行分析。")
         system_msg = "你是一位资深的考研英语名师，擅长通过图片识别试题并进行深度讲解。"
+    elif subject == 'writing':
+        prompt = WRITING_ANALYZE_PROMPT.replace("{question_text}", "请识别图片中的写作题目内容，并进行全面分析，包括范文。")
+        system_msg = "你是一位资深的管综写作名师，擅长论证有效性分析和论说文辅导。"
     else:
         prompt = GENERAL_ANALYZE_PROMPT.replace("{question_text}", "请识别图片中的题目内容，并进行分析。")
         system_msg = "你是一个专业的考研辅导老师，擅长通过图片识别试题并进行深度讲解。"
@@ -113,10 +117,19 @@ def analyze_question_with_image(image_base64: str, subject: str = None, mime_typ
                 }
             ],
             temperature=0.3,
-            max_tokens=4096
+            max_tokens=65536  # Increased for writing questions with long responses
         )
         
         content = response.choices[0].message.content
+        
+        # Debug: Log response for troubleshooting
+        print(f"[LLM Response Preview]: {content[:500] if content else 'EMPTY'}...")
+        
+        if not content or not content.strip():
+            return {
+                "success": False,
+                "error": "LLM返回了空内容，请稍后重试"
+            }
         
         # Extract JSON from response
         import json
@@ -142,7 +155,8 @@ def analyze_question_with_image(image_base64: str, subject: str = None, mime_typ
     except json.JSONDecodeError as e:
         return {
             "success": False,
-            "error": f"JSON解析失败: {str(e)}"
+            "error": f"JSON解析失败: {str(e)}",
+            "raw_response": content[:1000] if 'content' in dir() else "无响应内容"
         }
     except Exception as e:
         return {
@@ -175,6 +189,9 @@ def analyze_question(question_text: str, subject: str = None) -> dict:
     elif subject == 'english':
         prompt = ENGLISH_ANALYZE_PROMPT # Use the detailed English prompt
         system_msg = "你是一位资深的考研英语名师。"
+    elif subject == 'writing':
+        prompt = WRITING_ANALYZE_PROMPT # Use the specialized writing prompt
+        system_msg = "你是一位资深的管综写作名师，擅长论证有效性分析和论说文辅导。"
     else:
         # Fallback for old/generic calls
         prompt = GENERAL_ANALYZE_PROMPT
@@ -249,7 +266,7 @@ def analyze_english_question(question_text: str) -> dict:
                 {"role": "user", "content": ENGLISH_ANALYZE_PROMPT.format(question_text=question_text)}
             ],
             temperature=0.3,
-            max_tokens=4096
+            max_tokens=65536
         )
         
         content = response.choices[0].message.content
@@ -342,7 +359,7 @@ def batch_analyze_questions(questions: list) -> list:
                 {"role": "user", "content": BATCH_ANALYZE_PROMPT.format(questions_json=questions_str)}
             ],
             temperature=0.3,
-            max_tokens=4096
+            max_tokens=65536
         )
         
         content = response.choices[0].message.content
