@@ -12,6 +12,8 @@ const rawContent = ref('')
 const isEditing = ref(false)
 const saving = ref(false)
 const localMeta = ref({})
+const passageContent = ref('')
+const loadingPassage = ref(false)
 
 // Helper to extract frontmatter
 function parseFrontmatter(text) {
@@ -38,9 +40,25 @@ function parseFrontmatter(text) {
   return { meta, content }
 }
 
+async function fetchPassage(passageId) {
+  loadingPassage.value = true
+  try {
+    const res = await fetch(`${API_BASE}/api/passages/${passageId}`)
+    if (res.ok) {
+      const data = await res.json()
+      passageContent.value = data.content
+    }
+  } catch (e) {
+    console.error('Failed to fetch passage:', e)
+  } finally {
+    loadingPassage.value = false
+  }
+}
+
 async function fetchContent() {
   loading.value = true
   error.value = ''
+  passageContent.value = ''
   
   const id = route.params.id
   const category = route.params.category
@@ -63,6 +81,11 @@ async function fetchContent() {
     // Parse meta for header display
     const { meta } = parseFrontmatter(rawContent.value)
     localMeta.value = meta
+    
+    // If it's a reading question with a passage_id, fetch the passage
+    if (localMeta.value.passage_id) {
+       await fetchPassage(localMeta.value.passage_id)
+    }
     
   } catch (e) {
     error.value = e.message || '加载失败'
@@ -119,6 +142,22 @@ const subjectLabel = computed(() => {
   const sub = localMeta.value.subject || route.params.category || 'unknown'
   return map[sub] || sub
 })
+
+const englishSectionMap = {
+  cloze: '英语知识运用 (完型)',
+  reading_a: '阅读理解 A',
+  reading_b: '阅读理解 B (新题型)',
+  translation: '翻译 (英译汉)',
+  writing_a: '写作 A (小作文)',
+  writing_b: '写作 B (大作文)'
+}
+
+const sectionLabel = computed(() => {
+  if (localMeta.value.subject === 'english' && localMeta.value.section) {
+    return englishSectionMap[localMeta.value.section] || localMeta.value.section
+  }
+  return null
+})
 </script>
 
 <template>
@@ -136,7 +175,7 @@ const subjectLabel = computed(() => {
         
         <div class="flex items-center gap-3">
            <span v-if="saving" class="text-xs text-zinc-500 animate-pulse">Saving...</span>
-           <button @click="isEditing = !isEditing" class="btn btn-ghost text-zinc-400 hover:text-white">
+           <button @click="isEditing = !isEditing" class="btn btn-ghost text-zinc-400 hover:text-white text-sm">
                 {{ isEditing ? 'Cancel' : 'Edit' }}
             </button>
             <button v-if="isEditing" @click="saveContent" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition-colors shadow-lg shadow-blue-900/20">
@@ -148,8 +187,8 @@ const subjectLabel = computed(() => {
 
     <!-- Main Content -->
     <main class="h-[calc(100vh-64px)] overflow-hidden flex flex-col">
-       <!-- Header Section (Metadata) -->
-       <header v-if="!isEditing && !loading" class="bg-[#0c0c0e] border-b border-zinc-800/50 px-8 py-8">
+       <!-- Header Section (Metadata) - Only show if not editing AND not a passage view to save space -->
+       <header v-if="!isEditing && !loading && !localMeta.passage_id" class="bg-[#0c0c0e] border-b border-zinc-800/50 px-8 py-8 flex-shrink-0">
           <div class="max-w-5xl mx-auto">
              <div class="flex flex-wrap items-center gap-4 mb-4">
                 <span class="px-3 py-1 rounded-full text-xs font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 uppercase tracking-wider">
@@ -163,38 +202,25 @@ const subjectLabel = computed(() => {
                 </span>
              </div>
              
-             <h1 class="text-3xl md:text-4xl font-extrabold text-white font-serif tracking-tight mb-6 leading-tight">
+             <h1 class="text-3xl md:text-4xl font-extrabold text-white font-serif tracking-tight mb-4 leading-tight">
                {{ localMeta.title || 'Untitled Question' }}
              </h1>
              
-             <!-- Meta Grid -->
-             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm font-mono text-zinc-500">
-               <div v-if="localMeta.source" class="flex flex-col">
-                 <span class="text-xs text-zinc-600 uppercase mb-1">Source</span>
-                 <span class="text-zinc-300">{{ localMeta.source }}</span>
-               </div>
-               <div v-if="localMeta.date" class="flex flex-col">
-                 <span class="text-xs text-zinc-600 uppercase mb-1">Date</span>
-                 <span class="text-zinc-300">{{ localMeta.date }}</span>
-               </div>
-               <div v-if="localMeta.tags" class="col-span-2 flex flex-col">
-                 <span class="text-xs text-zinc-600 uppercase mb-1">Tags</span>
-                 <div class="flex gap-2">
-                    <span v-for="tag in (localMeta.tags || '').split(',')" :key="tag" class="text-zinc-400 hover:text-white transition-colors">#{{ tag.trim() }}</span>
-                 </div>
-               </div>
+             <div v-if="sectionLabel" class="flex items-center gap-2 text-indigo-400 mb-6 font-medium">
+                <span class="text-xl">🔖</span>
+                <span class="text-lg">{{ sectionLabel }}</span>
              </div>
           </div>
        </header>
 
        <!-- Content Body -->
-       <div class="flex-1 overflow-hidden relative min-h-0">
+       <div class="flex-1 overflow-hidden relative min-h-0 flex">
           <!-- Loading State -->
-          <div v-if="loading" class="absolute inset-0 flex items-center justify-center">
+          <div v-if="loading" class="absolute inset-0 flex items-center justify-center z-50 bg-[#09090b]">
              <div class="w-8 h-8 border-2 border-zinc-600 border-t-zinc-200 rounded-full animate-spin"></div>
           </div>
           
-          <!-- Editor Mode -->
+          <!-- Editor Mode (Always Full Screen) -->
           <MarkdownEditor 
             v-if="isEditing" 
             v-model:value="rawContent" 
@@ -202,10 +228,44 @@ const subjectLabel = computed(() => {
             class="absolute inset-0" 
           />
           
-          <!-- View Mode -->
-          <div v-else class="h-full overflow-y-auto bg-[#09090b]">
+          <!-- View Mode: Dual Column for Passages -->
+          <template v-else-if="localMeta.passage_id">
+             <!-- Left: Passage -->
+             <div class="w-1/2 h-full overflow-y-auto border-r border-zinc-800 bg-zinc-900/20">
+                <div class="max-w-3xl ml-auto mr-0 px-8 py-10">
+                   <div class="mb-4 flex items-center justify-between">
+                      <span class="text-xs font-bold text-zinc-500 uppercase tracking-widest">Reading Passage</span>
+                      <span class="text-xs text-zinc-600 font-mono">{{ localMeta.passage_id }}</span>
+                   </div>
+                   <div class="prose prose-invert prose-zinc max-w-none">
+                       <MarkdownEditor 
+                        :value="passageContent" 
+                        mode="split" 
+                        :readonly="true"
+                        class="passage-markdown"
+                      />
+                   </div>
+                </div>
+             </div>
+             <!-- Right: Question -->
+             <div class="w-1/2 h-full overflow-y-auto bg-[#09090b]">
+                <div class="max-w-3xl mr-auto ml-0 px-8 py-10">
+                   <div class="mb-6">
+                      <span class="px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[10px] font-bold uppercase tracking-wider mr-2">Question</span>
+                      <span class="text-amber-400 text-xs tracking-widest">{{ difficultyStars }}</span>
+                   </div>
+                   <MarkdownEditor 
+                    :value="rawContent" 
+                    mode="split" 
+                    :readonly="true"
+                  />
+                </div>
+             </div>
+          </template>
+
+          <!-- View Mode: Standard -->
+          <div v-else class="flex-1 h-full overflow-y-auto bg-[#09090b]">
              <div class="max-w-5xl mx-auto px-8 py-10">
-                <!-- Use the Markdown Viewer -->
                 <MarkdownEditor 
                   :value="rawContent" 
                   mode="split" 

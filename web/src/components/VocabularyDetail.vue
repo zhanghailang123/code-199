@@ -12,6 +12,7 @@ const emit = defineEmits(['close'])
 
 const isEditing = ref(false)
 const saving = ref(false)
+const regenerating = ref(false)
 const localItem = ref(null)
 const rawContent = ref('')
 
@@ -71,6 +72,37 @@ async function save() {
         alert('Save failed')
     } finally {
         saving.value = false
+    }
+}
+
+// Regenerate content using LLM
+async function regenerate() {
+    if (!localItem.value || regenerating.value) return
+    
+    regenerating.value = true
+    try {
+        const res = await fetch(`${API_BASE}/api/vocabulary/${props.item.id}/regenerate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        })
+        if (res.ok) {
+            const data = await res.json()
+            if (data.success && data.content) {
+                rawContent.value = data.content
+                // Also re-fetch to update localItem
+                const refreshRes = await fetch(`${API_BASE}/api/vocabulary/${props.item.id}`)
+                if (refreshRes.ok) {
+                    localItem.value = await refreshRes.json()
+                }
+            }
+        } else {
+            alert('重新生成失败，请稍后重试')
+        }
+    } catch (e) {
+        console.error('重新生成失败:', e)
+        alert('重新生成失败')
+    } finally {
+        regenerating.value = false
     }
 }
 
@@ -217,6 +249,17 @@ onUnmounted(() => {
             </div>
          </div>
          <div class="flex gap-2">
+            <button 
+               @click="regenerate" 
+               :disabled="regenerating"
+               class="btn text-zinc-400 hover:text-white flex items-center gap-1.5"
+               :class="regenerating ? 'opacity-50 cursor-wait' : 'hover:bg-white/5'"
+               title="重新生成内容"
+            >
+               <span v-if="regenerating" class="animate-spin">🔄</span>
+               <span v-else>🔄</span>
+               <span class="text-sm">{{ regenerating ? '生成中...' : '重新生成' }}</span>
+            </button>
             <button @click="isEditing = !isEditing" class="btn btn-ghost text-zinc-400 hover:text-white">
                 {{ isEditing ? 'Cancel' : 'Edit' }}
             </button>

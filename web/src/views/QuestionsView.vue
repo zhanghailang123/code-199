@@ -7,6 +7,7 @@ const loading = ref(true)
 const error = ref('')
 const filter = ref('all')
 const searchQuery = ref('')
+const sectionFilter = ref('all')
 
 async function fetchQuestions() {
   loading.value = true
@@ -38,6 +39,11 @@ const filteredQuestions = computed(() => {
   // Filter by subject
   if (filter.value !== 'all') {
     result = result.filter(q => q.subject === filter.value)
+    
+    // Filter by section if subject is english
+    if (filter.value === 'english' && sectionFilter.value !== 'all') {
+      result = result.filter(q => q.section === sectionFilter.value)
+    }
   }
   
   // Filter by search query
@@ -60,6 +66,15 @@ const subjectLabel = {
   math: '数学',
   logic: '逻辑',
   english: '英语'
+}
+const englishSectionLabels = {
+  all: '全部',
+  cloze: '完型',
+  reading_a: '阅读A',
+  reading_b: '阅读B',
+  translation: '翻译',
+  writing_a: '小作文',
+  writing_b: '大作文'
 }
 </script>
 
@@ -118,6 +133,18 @@ const subjectLabel = {
                  placeholder="搜索题目 ID..."
                  class="w-full pl-10 pr-4 py-2.5 bg-zinc-900/50 border border-white/10 rounded-xl text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 transition-all">
         </div>
+      </div>
+
+      <!-- English Section Filter (Secondary) -->
+      <div v-if="filter === 'english'" class="mt-4 pt-4 border-t border-white/5 flex flex-wrap gap-2">
+        <span class="text-xs text-zinc-500 font-bold uppercase tracking-widest mr-2 self-center">题型细分</span>
+        <button v-for="(label, key) in englishSectionLabels" 
+                :key="key"
+                @click="sectionFilter = key"
+                class="px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                :class="sectionFilter === key ? 'bg-emerald-500/20 text-emerald-400 ring-1 ring-emerald-500/30' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'">
+          {{ label }}
+        </button>
       </div>
     </div>
     

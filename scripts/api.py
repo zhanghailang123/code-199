@@ -13,7 +13,14 @@ from pathlib import Path
 # Configuration
 CONTENT_DIR = Path(__file__).parent.parent / "content"
 QUESTIONS_DIR = CONTENT_DIR / "questions"
-KNOWLEDGE_DIR = CONTENT_DIR / "knowledge_base"
+KNOWLEDGE_DIR = CONTENT_DIR / "knowledge"
+CURRICULUM_DIR = CONTENT_DIR / "curriculum"
+VOCAB_DIR = CONTENT_DIR / "vocabulary"
+PASSAGES_DIR = CONTENT_DIR / "passages"
+
+# Create directories if they don't exist
+for d in [QUESTIONS_DIR, KNOWLEDGE_DIR, CURRICULUM_DIR, VOCAB_DIR, PASSAGES_DIR]:
+    d.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(
     title="MEM Study API",
@@ -499,8 +506,47 @@ def update_vocabulary(id: str, req: UpdateVocabularyRequest):
     return {"success": True, "id": id}
 
 
+@app.post("/api/vocabulary/{id}/regenerate")
+def regenerate_vocabulary(id: str):
+    """
+    Regenerate vocabulary content using LLM.
+    """
+    from llm_analyzer import generate_vocabulary_article
+    
+    vocab_dir = CONTENT_DIR / "vocabulary"
+    found_path = None
+    word = None
+    
+    # Find the file and extract the word
+    for file_path in vocab_dir.rglob("*.md"):
+        item = parse_vocabulary_file(file_path)
+        if item and item.id == id:
+            found_path = file_path
+            word = item.word
+            break
+    
+    if not found_path or not word:
+        raise HTTPException(status_code=404, detail="Vocabulary not found")
+    
+    # Generate new content
+    try:
+        new_content = generate_vocabulary_article(word)
+        
+        # Ensure ID matches
+        import re
+        new_content = re.sub(r'^id:\s*.*$', f'id: "{id}"', new_content, flags=re.MULTILINE)
+        
+        # Save to file
+        found_path.write_text(new_content, encoding="utf-8")
+        
+        return {"success": True, "id": id, "content": new_content}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Regeneration failed: {str(e)}")
+
+
 class AnalyzeRequest(BaseModel):
     question_text: str
+    subject: Optional[str] = None
 
 @app.post("/api/analyze")
 def analyze_question_endpoint(request: AnalyzeRequest):
@@ -513,10 +559,38 @@ def analyze_question_endpoint(request: AnalyzeRequest):
     if not request.question_text.strip():
         raise HTTPException(status_code=400, detail="Question text is required")
     
-    result = analyze_question(request.question_text)
+    result = analyze_question(request.question_text, subject=request.subject)
     
     if not result.get("success"):
         raise HTTPException(status_code=500, detail=result.get("error", "Analysis failed"))
+    
+    return result
+
+
+class AnalyzeImageRequest(BaseModel):
+    image_base64: str
+    subject: Optional[str] = None
+    mime_type: str = "image/png"
+
+@app.post("/api/analyze-image")
+def analyze_image_endpoint(request: AnalyzeImageRequest):
+    """
+    Analyze a question from an image using LLM Vision.
+    Returns structured question data with learning-focused explanations.
+    """
+    from llm_analyzer import analyze_question_with_image
+    
+    if not request.image_base64:
+        raise HTTPException(status_code=400, detail="Image data is required")
+    
+    result = analyze_question_with_image(
+        request.image_base64, 
+        subject=request.subject,
+        mime_type=request.mime_type
+    )
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("error", "Image analysis failed"))
     
     return result
 

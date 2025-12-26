@@ -8,17 +8,21 @@ const router = useRouter()
 
 // State
 const rawText = ref('')
+const uploadedImage = ref(null)
+const imagePreview = ref('')
 const analyzing = ref(false)
 const error = ref('')
 const success = ref('')
 const analyzed = ref(null)
 const saving = ref(false)
+const inputMode = ref('text') // 'text' or 'image'
 
 // Form data (filled after analysis)
 const form = ref({
   id: '',
   source: '2024年管理类联考',
   subject: 'math',
+  section: 'all',
   type: 'choice',
   difficulty: 3,
   knowledge_points: '',
@@ -52,7 +56,10 @@ async function analyze() {
     const response = await fetch(`${API_BASE}/api/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question_text: rawText.value })
+      body: JSON.stringify({ 
+        question_text: rawText.value,
+        subject: form.value.subject 
+      })
     })
     
     if (!response.ok) {
@@ -64,23 +71,7 @@ async function analyze() {
     
     if (result.success && result.data) {
       analyzed.value = result.data
-      
-      // Fill form with analyzed data
-      const d = result.data
-      form.value = {
-        id: generateId(d.subject),
-        source: '2024年管理类联考',
-        subject: d.subject || 'math',
-        type: d.type || 'choice',
-        difficulty: d.difficulty || 3,
-        knowledge_points: (d.knowledge_points || []).join(', '),
-        tags: (d.tags || []).join(', '),
-        content: d.content || '',
-        options: d.options || '',
-        answer: d.answer || '',
-        explanation: d.explanation || ''
-      }
-      
+      fillFormFromResult(result.data)
       success.value = 'AI分析完成！请检查并保存'
     } else {
       throw new Error('分析返回格式错误')
@@ -90,6 +81,96 @@ async function analyze() {
     error.value = e.message || '分析失败，请检查API Key配置'
   } finally {
     analyzing.value = false
+  }
+}
+
+// Handle image file selection
+function handleImageUpload(event) {
+  const file = event.target.files[0]
+  if (!file) return
+  
+  uploadedImage.value = file
+  
+  // Create preview
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    imagePreview.value = e.target.result
+  }
+  reader.readAsDataURL(file)
+}
+
+// Analyze image with LLM Vision
+async function analyzeImage() {
+  if (!uploadedImage.value) {
+    error.value = '请先上传图片'
+    return
+  }
+  
+  analyzing.value = true
+  error.value = ''
+  analyzed.value = null
+  
+  try {
+    // Convert image to base64
+    const reader = new FileReader()
+    const base64Promise = new Promise((resolve) => {
+      reader.onload = (e) => {
+        const base64 = e.target.result.split(',')[1]
+        resolve(base64)
+      }
+    })
+    reader.readAsDataURL(uploadedImage.value)
+    const imageBase64 = await base64Promise
+    
+    const mimeType = uploadedImage.value.type || 'image/png'
+    
+    const response = await fetch(`${API_BASE}/api/analyze-image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        image_base64: imageBase64,
+        subject: form.value.subject,
+        mime_type: mimeType
+      })
+    })
+    
+    if (!response.ok) {
+      const data = await response.json()
+      throw new Error(data.detail || '图片分析失败')
+    }
+    
+    const result = await response.json()
+    
+    if (result.success && result.data) {
+      analyzed.value = result.data
+      fillFormFromResult(result.data)
+      success.value = 'AI图片分析完成！请检查并保存'
+    } else {
+      throw new Error('分析返回格式错误')
+    }
+    
+  } catch (e) {
+    error.value = e.message || '图片分析失败'
+  } finally {
+    analyzing.value = false
+  }
+}
+
+// Fill form from analysis result
+function fillFormFromResult(d) {
+  form.value = {
+    id: generateId(d.subject),
+    source: '2024年管理类联考',
+    subject: d.subject || 'math',
+    section: d.section || 'all',
+    type: d.type || 'choice',
+    difficulty: d.difficulty || 3,
+    knowledge_points: (d.knowledge_points || []).join(', '),
+    tags: (d.tags || []).join(', '),
+    content: d.content || '',
+    options: d.options || '',
+    answer: d.answer || '',
+    explanation: d.explanation || ''
   }
 }
 
@@ -148,33 +229,104 @@ async function saveQuestion() {
       <p class="text-slate-500 mt-1">粘贴原题 → AI自动分析 → 一键保存</p>
     </header>
 
-    <!-- Step 1: Paste raw text -->
+    <!-- Step 1: Input (Text or Image) -->
     <div class="card p-6 mb-8" v-if="!analyzed">
-      <h2 class="text-lg font-bold text-slate-800 mb-4">第一步：粘贴题目原文</h2>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-lg font-bold text-slate-800">第一步：输入题目</h2>
+        
+        <!-- Mode Toggle -->
+        <div class="flex gap-1 p-1 bg-slate-200 rounded-lg">
+          <button 
+            @click="inputMode = 'text'"
+            class="px-4 py-1.5 rounded-md text-sm font-medium transition-all"
+            :class="inputMode === 'text' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'"
+          >📝 文本</button>
+          <button 
+            @click="inputMode = 'image'"
+            class="px-4 py-1.5 rounded-md text-sm font-medium transition-all"
+            :class="inputMode === 'image' ? 'bg-white shadow text-slate-800' : 'text-slate-500 hover:text-slate-700'"
+          >📷 截图</button>
+        </div>
+      </div>
       
       <div v-if="error" class="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
         {{ error }}
       </div>
       
-      <textarea 
-        v-model="rawText" 
-        rows="10" 
-        placeholder="直接粘贴题目完整内容，包括选项、答案（如有）...
+      <!-- Subject Selection (always visible) -->
+      <div class="mb-4">
+        <label class="block text-sm font-semibold text-slate-600 mb-2">请先选择科目（可提高识别准确率）</label>
+        <div class="flex gap-2">
+          <button 
+            v-for="(label, key) in {math: '数学', logic: '逻辑', english: '英语'}"
+            :key="key"
+            @click="form.subject = key"
+            class="px-4 py-2 rounded-lg text-sm font-medium border transition-all"
+            :class="form.subject === key ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-slate-600 border-slate-300 hover:border-blue-400'"
+          >{{ label }}</button>
+        </div>
+      </div>
+      
+      <!-- Text Mode -->
+      <div v-if="inputMode === 'text'">
+        <textarea 
+          v-model="rawText" 
+          rows="10" 
+          placeholder="直接粘贴题目完整内容，包括选项、答案（如有）...
 
 例如：
 甲、乙两人分别从 A、B 两地同时出发，相向而行。甲的速度是乙的 1.5 倍...
 A. 1.2  B. 1.5  C. 1.8  D. 2.0  E. 2.5"
-        class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
-      ></textarea>
+          class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
+        ></textarea>
+        
+        <button 
+          @click="analyze" 
+          :disabled="analyzing || !rawText.trim()"
+          class="mt-4 btn btn-primary py-3 px-6 text-base disabled:opacity-50"
+        >
+          <span v-if="analyzing">🔄 AI 分析中...</span>
+          <span v-else>🤖 开始AI分析</span>
+        </button>
+      </div>
       
-      <button 
-        @click="analyze" 
-        :disabled="analyzing || !rawText.trim()"
-        class="mt-4 btn btn-primary py-3 px-6 text-base disabled:opacity-50"
-      >
-        <span v-if="analyzing">🔄 AI 分析中...</span>
-        <span v-else>🤖 开始AI分析</span>
-      </button>
+      <!-- Image Mode -->
+      <div v-else>
+        <div 
+          class="border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:border-blue-400 transition-colors cursor-pointer"
+          @click="$refs.imageInput.click()"
+          @dragover.prevent
+          @drop.prevent="handleImageUpload({target: {files: $event.dataTransfer.files}})"
+        >
+          <input 
+            ref="imageInput"
+            type="file" 
+            accept="image/*" 
+            @change="handleImageUpload" 
+            class="hidden"
+          />
+          
+          <div v-if="!imagePreview">
+            <div class="text-5xl mb-4">📸</div>
+            <p class="text-slate-600 font-medium">点击上传或拖拽图片到此处</p>
+            <p class="text-slate-400 text-sm mt-1">支持 PNG、JPG 格式</p>
+          </div>
+          
+          <div v-else>
+            <img :src="imagePreview" class="max-h-64 mx-auto rounded-lg shadow-lg" />
+            <p class="text-slate-500 text-sm mt-3">点击可重新选择图片</p>
+          </div>
+        </div>
+        
+        <button 
+          @click="analyzeImage" 
+          :disabled="analyzing || !uploadedImage"
+          class="mt-4 btn btn-primary py-3 px-6 text-base disabled:opacity-50"
+        >
+          <span v-if="analyzing">🔄 AI 识别分析中...</span>
+          <span v-else>🤖 开始AI识别分析</span>
+        </button>
+      </div>
     </div>
 
     <!-- Step 2: Review & Edit -->
@@ -206,6 +358,21 @@ A. 1.2  B. 1.5  C. 1.8  D. 2.0  E. 2.5"
                 <option value="math">数学</option>
                 <option value="logic">逻辑</option>
                 <option value="english">英语</option>
+              </select>
+            </div>
+          </div>
+
+          <div v-if="form.subject === 'english'" class="grid grid-cols-1 gap-4">
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1">题型细分 (英语二专供)</label>
+              <select v-model="form.section" class="w-full px-3 py-2 border border-slate-300 rounded-lg bg-indigo-50 border-indigo-200">
+                <option value="all">未分类</option>
+                <option value="cloze">英语知识运用 (完型)</option>
+                <option value="reading_a">阅读理解 A</option>
+                <option value="reading_b">阅读理解 B (新题型)</option>
+                <option value="translation">翻译 (英译汉)</option>
+                <option value="writing_a">写作 A (小作文)</option>
+                <option value="writing_b">写作 B (大作文)</option>
               </select>
             </div>
           </div>

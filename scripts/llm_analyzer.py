@@ -7,6 +7,15 @@ import yaml
 from pathlib import Path
 from openai import OpenAI
 
+# Import learning-focused prompts from centralized file
+from prompts import (
+    MATH_ANALYZE_PROMPT,
+    LOGIC_ANALYZE_PROMPT,
+    ENGLISH_ANALYZE_PROMPT,
+    GENERAL_ANALYZE_PROMPT,
+    VOCABULARY_ARTICLE_PROMPT
+)
+
 # Load configuration
 CONFIG_PATH = Path(__file__).parent.parent / "config" / "config.yaml"
 
@@ -42,100 +51,18 @@ def get_model():
     config = load_config()
     return config.get("llm", {}).get("model", "gpt-4o-mini")
 
-
-ANALYZE_PROMPT = """你是一个专业的管理类联考（MEM/MBA）辅导老师，请分析以下考研真题。
-
-题目内容：
-{question_text}
-
-请按照以下JSON格式返回分析结果（确保返回的是合法的JSON）：
-
-```json
-{{
-    "subject": "math或logic或english",
-    "type": "choice或fill或essay",
-    "difficulty": 1到5的数字,
-    "content": "题目主体内容（不含选项）",
-    "options": "选项文本，格式为 A. xxx\\nB. xxx\\n...",
-    "answer": "正确答案，如 C",
-    "explanation": "详细解析步骤，包含解题思路和技巧",
-    "knowledge_points": ["知识点1", "知识点2"],
-    "tags": ["标签1", "标签2"]
-}}
-```
-
-注意：
-1. subject 只能是 math、logic、english 之一
-2. difficulty: 1=简单, 3=中等, 5=困难
-3. explanation 要详细，包含解题步骤
-4. knowledge_points 提取核心考点
-5. 返回纯JSON，不要有其他文字"""
+# Note: All prompts (MATH_ANALYZE_PROMPT, LOGIC_ANALYZE_PROMPT, ENGLISH_ANALYZE_PROMPT, GENERAL_ANALYZE_PROMPT)
+# are now imported from prompts.py for centralized maintenance.
 
 
-# English-specialized analysis prompt with vocabulary and sentence dimensions
-ENGLISH_ANALYZE_PROMPT = """你是一位资深的考研英语辅导专家，请对以下英语真题进行多维度深度分析。
-
-题目内容：
-{question_text}
-
-请按照以下JSON格式返回分析结果（确保返回的是合法的JSON）：
-
-```json
-{{
-    "subject": "english",
-    "type": "choice或reading或translation或writing",
-    "difficulty": 1到5的数字,
-    "content": "题目主体内容",
-    "options": "选项文本（如有）",
-    "answer": "正确答案",
-    "explanation": "详细解析，包含解题思路",
-    "knowledge_points": ["考点1", "考点2"],
-    "tags": ["标签"],
-    
-    "vocabulary": [
-        {{
-            "word": "核心词汇",
-            "phonetic": "音标",
-            "meaning": "中文释义",
-            "example": "例句",
-            "associated_words": ["联想词1", "联想词2", "联想词3"]
-        }}
-    ],
-    
-    "key_sentences": [
-        {{
-            "original": "题目中的关键句/长难句",
-            "translation": "中文翻译",
-            "structure": "句子结构分析（主干+修饰成分）",
-            "similar_sentences": [
-                "类似结构的句子示例1",
-                "类似结构的句子示例2"
-            ]
-        }}
-    ],
-    
-    "reading_skills": {{
-        "question_type": "题型分类（主旨/细节/推理/态度/词义）",
-        "solving_strategy": "解题策略",
-        "distractor_analysis": "干扰项分析"
-    }}
-}}
-```
-
-分析要求：
-1. vocabulary：提取3-5个核心词汇，每个词汇附带2-3个联想词（同义词/反义词/词根相关）
-2. key_sentences：提取1-2个长难句，分析结构，并给出2个结构类似的句子示例
-3. reading_skills：仅阅读理解题需要填写此项
-4. 确保所有中文翻译准确流畅
-5. 返回纯JSON，不要有其他文字"""
-
-
-def analyze_question(question_text: str) -> dict:
+def analyze_question_with_image(image_base64: str, subject: str = None, mime_type: str = "image/png") -> dict:
     """
-    Analyze a question using LLM.
+    Analyze a question from an image using LLM Vision.
     
     Args:
-        question_text: Raw question text (can include options, answer, etc.)
+        image_base64: Base64 encoded image data
+        subject: Optional hint for subject (math, logic, english)
+        mime_type: Image MIME type (image/png or image/jpeg)
     
     Returns:
         Dictionary with analyzed question data
@@ -143,16 +70,124 @@ def analyze_question(question_text: str) -> dict:
     client = get_client()
     model = get_model()
     
+    # Choose prompt based on subject
+    if subject == 'math':
+        prompt = MATH_ANALYZE_PROMPT.replace("{question_text}", "请识别图片中的数学题目内容，并进行分析。")
+        system_msg = "你是一位资深的考研数学名师，擅长通过图片识别试题并进行深度讲解。"
+    elif subject == 'logic':
+        prompt = LOGIC_ANALYZE_PROMPT.replace("{question_text}", "请识别图片中的逻辑题目内容，并进行分析。")
+        system_msg = "你是一位资深的考研逻辑名师，擅长通过图片识别试题并进行深度讲解。"
+    elif subject == 'english':
+        prompt = ENGLISH_ANALYZE_PROMPT.replace("{question_text}", "请识别图片中的英语题目内容，并进行分析。")
+        system_msg = "你是一位资深的考研英语名师，擅长通过图片识别试题并进行深度讲解。"
+    else:
+        prompt = GENERAL_ANALYZE_PROMPT.replace("{question_text}", "请识别图片中的题目内容，并进行分析。")
+        system_msg = "你是一个专业的考研辅导老师，擅长通过图片识别试题并进行深度讲解。"
+    
+    # Add image-specific instruction
+    image_instruction = """
+【图片识别任务】
+请先仔细识别图片中的题目内容（包括题干、选项、图形等），然后按照要求的JSON格式进行分析。
+如果图片中包含几何图形，请在content中注明"（含几何图形，请参考原图）"。
+如果图片模糊或无法识别，请在返回中注明。
+"""
+    full_prompt = image_instruction + "\n\n" + prompt
     
     try:
         response = client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": "你是一个专业的考研辅导老师，擅长分析管理类联考真题。请务必按照用户要求的JSON格式返回结果。"},
-                {"role": "user", "content": ANALYZE_PROMPT.format(question_text=question_text)}
+                {"role": "system", "content": system_msg},
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": full_prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:{mime_type};base64,{image_base64}",
+                                "detail": "high"
+                            }
+                        }
+                    ]
+                }
+            ],
+            temperature=0.3,
+            max_tokens=4096
+        )
+        
+        content = response.choices[0].message.content
+        
+        # Extract JSON from response
+        import json
+        import re
+        
+        json_match = re.search(r'```(?:json)?\s*([\s\S]*?)```', content)
+        if json_match:
+            json_str = json_match.group(1).strip()
+        else:
+            json_match = re.search(r'\{[\s\S]*\}', content)
+            if json_match:
+                json_str = json_match.group(0)
+            else:
+                json_str = content
+        
+        result = json.loads(json_str)
+        
+        return {
+            "success": True,
+            "data": result
+        }
+        
+    except json.JSONDecodeError as e:
+        return {
+            "success": False,
+            "error": f"JSON解析失败: {str(e)}"
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
+def analyze_question(question_text: str, subject: str = None) -> dict:
+    """
+    Analyze a question using LLM.
+    
+    Args:
+        question_text: Raw question text (can include options, answer, etc.)
+        subject: Optional hint for subject (math, logic, english)
+    
+    Returns:
+        Dictionary with analyzed question data
+    """
+    client = get_client()
+    model = get_model()
+    
+    # Choose prompt based on subject
+    if subject == 'math':
+        prompt = MATH_ANALYZE_PROMPT
+        system_msg = "你是一位资深的考研数学名师。"
+    elif subject == 'logic':
+        prompt = LOGIC_ANALYZE_PROMPT
+        system_msg = "你是一位资深的考研逻辑名师。"
+    elif subject == 'english':
+        prompt = ENGLISH_ANALYZE_PROMPT # Use the detailed English prompt
+        system_msg = "你是一位资深的考研英语名师。"
+    else:
+        # Fallback for old/generic calls
+        prompt = GENERAL_ANALYZE_PROMPT
+        system_msg = "你是一个专业的考研辅导老师，擅长分析管理类联考真题。"
+    
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": system_msg},
+                {"role": "user", "content": prompt.format(question_text=question_text)}
             ],
             temperature=0.3
-            # Note: removed response_format for compatibility with non-OpenAI models
         )
         
         content = response.choices[0].message.content
@@ -440,48 +475,6 @@ def generate_vocabulary_frontmatter(content: str) -> str:
         # Fallback minimal frontmatter
         return "---\nid: vocab-unknown\nword: Unknown\nstatus: learning\n---\n"
 
-
-VOCABULARY_ARTICLE_PROMPT = """你是一位资深的考研英语辅导名师，讲课风格风趣幽默，直击痛点，擅长用最直观的逻辑帮学生死磕核心词汇。
-
-请为单词 "{word}" 撰写一篇考研风格的深度单词笔记。
-
-### 风格要求：
-1.  **语气**：像面对面辅导一样，开篇要直接（"考研党你好！"），中间要穿插鼓励和警示（"千万别搞混..."，"这是拿分的关键！"）。
-2.  **排版**：严格遵守 Markdown 格式，使用 **粗体** 强调重点，使用 > 引用块展示例句。
-3.  **结构**：必须包含以下五个部分（标题要完全一致）：
-    -   开篇引入（一两句话，直击单词在考研中的地位或常见误区）
-    -   ### 一、 核心记忆锚点（Root & Logic）
-    -   ### 二、 考研核心考法（The "Killer" Meaning）
-    -   ### 三、 考研“视觉陷阱”警报（Visual Trap） (如果有形近词/易混词，没有则跳过)
-    -   ### 四、 考研写作替换（Writing Upgrade）
-    -   ### 五、 沉浸式记忆（Scenario）
-    -   结尾鼓励（一句话总结）
-
-### 内容要求：
-1.  **Frontmatter**：文章开头必须包含标准的 YAML Frontmatter（id, word, phonetic, tags, status, definitions, related_questions）。
-2.  **Definitions 格式**：definitions 列表中的每一项必须严格包含以下字段：
-    -   `part`: 词性（如 v., adj., n.）
-    -   `translation`: 简短中文释义（用于列表显示）
-    -   `text`: 详细释义（可包含英文或扩展）
-    -   ❌ **禁止使用** `part_of_speech` 或 `meaning` 此类字段名。
-3.  **Tags**：自动推断标签，如 ["考研", "阅读", "高频"]。
-4.  **真题模拟**：在"考研核心考法"中，必须编造或引用一句类似于考研真题的例句，并附带解析。
-5.  **写作替换**：提供 Low Level vs High Level 的对比。
-6.  **音标**：必须包含 IPA 音标。
-
-### 示例参考：
-(Frontmatter...)
-考研党你好！看到 **Scrapping** 这个词，千万别以为是“刮擦”...
-### 一、 核心记忆锚点（Root & Logic）
-...
-
-### 重要提示：
--   **直接输出 Markdown 内容**，不要用 ```markdown 或 ``` 包含整个回复。
--   确保第一行是 `---`。
--   确保 Frontmatter 格式正确。
-
-请开始创作：
-"""
 
 def generate_vocabulary_article(word: str) -> str:
     """
