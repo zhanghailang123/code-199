@@ -1184,6 +1184,108 @@ def delete_memo(memo_id: str):
     raise HTTPException(status_code=404, detail="Memo not found")
 
 
+# ====== System Configuration API ======
+CONFIG_PATH = CONTENT_DIR.parent / "config" / "config.yaml"
+
+class LLMConfigUpdate(BaseModel):
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+    model: Optional[str] = None
+
+def mask_api_key(key: str) -> str:
+    """Mask API key for display (show first 4 and last 4 chars)."""
+    if not key or len(key) < 10:
+        return "***"
+    return f"{key[:4]}{'*' * (len(key) - 8)}{key[-4:]}"
+
+@app.get("/api/config")
+def get_config():
+    """Get current system configuration."""
+    try:
+        if CONFIG_PATH.exists():
+            config = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
+        else:
+            config = {"llm": {}, "app": {}}
+        
+        # Mask API key for security
+        llm = config.get("llm", {})
+        return {
+            "llm": {
+                "api_key_masked": mask_api_key(llm.get("api_key", "")),
+                "base_url": llm.get("base_url", ""),
+                "model": llm.get("model", "gpt-4o-mini")
+            },
+            "app": config.get("app", {})
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to read config: {e}")
+
+@app.put("/api/config")
+def update_config(llm_config: LLMConfigUpdate):
+    """Update LLM configuration."""
+    try:
+        # Load existing config
+        if CONFIG_PATH.exists():
+            config = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
+        else:
+            config = {"llm": {}, "app": {"debug": True}}
+        
+        if "llm" not in config:
+            config["llm"] = {}
+        
+        # Update only provided fields
+        if llm_config.api_key is not None:
+            config["llm"]["api_key"] = llm_config.api_key
+        if llm_config.base_url is not None:
+            config["llm"]["base_url"] = llm_config.base_url
+        if llm_config.model is not None:
+            config["llm"]["model"] = llm_config.model
+        
+        # Save config
+        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+        
+        return {
+            "success": True,
+            "llm": {
+                "api_key_masked": mask_api_key(config["llm"].get("api_key", "")),
+                "base_url": config["llm"].get("base_url", ""),
+                "model": config["llm"].get("model", "")
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save config: {e}")
+
+@app.post("/api/config/test")
+def test_llm_connection():
+    """Test LLM connection with current config."""
+    try:
+        from openai import OpenAI
+        
+        if CONFIG_PATH.exists():
+            config = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
+        else:
+            return {"success": False, "error": "Config not found"}
+        
+        llm = config.get("llm", {})
+        client = OpenAI(
+            api_key=llm.get("api_key", ""),
+            base_url=llm.get("base_url", "https://api.openai.com/v1")
+        )
+        
+        # Simple test call
+        response = client.chat.completions.create(
+            model=llm.get("model", "gpt-4o-mini"),
+            messages=[{"role": "user", "content": "Hello"}],
+            max_tokens=5
+        )
+        
+        return {"success": True, "message": "连接成功！", "model": llm.get("model")}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 if __name__ == "__main__":
     import uvicorn
     print("Starting MEM Study API on http://localhost:8000")

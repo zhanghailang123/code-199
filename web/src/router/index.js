@@ -53,6 +53,11 @@ const router = createRouter({
             path: '/vocabulary',
             name: 'vocabulary',
             component: () => import('../views/VocabularyView.vue')
+        },
+        {
+            path: '/settings',
+            name: 'settings',
+            component: () => import('../views/SettingsView.vue')
         }
     ]
 })

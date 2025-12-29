@@ -64,6 +64,13 @@ function clearError() {
             <span>🔤</span> 单词本
           </router-link>
         </div>
+        
+        <div class="mt-6">
+          <span class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2 px-4">系统</span>
+          <router-link to="/settings" class="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 font-medium hover:bg-white/5 hover:text-white transition-all" active-class="!bg-blue-600/20 !text-blue-100 !border !border-blue-500/20 shadow-sm shadow-blue-500/10">
+            <span>⚙️</span> 设置
+          </router-link>
+        </div>
       </nav>
 
       <div class="p-4 border-t border-white/5 flex items-center gap-3">

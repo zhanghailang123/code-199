@@ -24,6 +24,12 @@ const isResizing = ref(false)
 const startY = ref(0)
 const startHeight = ref(0)
 
+// Panel drag state
+const panelPosition = ref({ x: 0, y: 0 })
+const isDragging = ref(false)
+const dragStartPos = ref({ x: 0, y: 0 })
+const dragStartOffset = ref({ x: 0, y: 0 })
+
 function startResize(e) {
   isResizing.value = true
   startY.value = e.clientY
@@ -49,9 +55,40 @@ function stopResize() {
   document.body.style.userSelect = ''
 }
 
+// Drag functions
+function startDrag(e) {
+  isDragging.value = true
+  dragStartPos.value = { x: e.clientX, y: e.clientY }
+  dragStartOffset.value = { ...panelPosition.value }
+  document.addEventListener('mousemove', doDrag)
+  document.addEventListener('mouseup', stopDrag)
+  document.body.style.cursor = 'move'
+  document.body.style.userSelect = 'none'
+}
+
+function doDrag(e) {
+  if (!isDragging.value) return
+  const deltaX = e.clientX - dragStartPos.value.x
+  const deltaY = e.clientY - dragStartPos.value.y
+  panelPosition.value = {
+    x: dragStartOffset.value.x + deltaX,
+    y: dragStartOffset.value.y + deltaY
+  }
+}
+
+function stopDrag() {
+  isDragging.value = false
+  document.removeEventListener('mousemove', doDrag)
+  document.removeEventListener('mouseup', stopDrag)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+}
+
 onUnmounted(() => {
   document.removeEventListener('mousemove', doResize)
   document.removeEventListener('mouseup', stopResize)
+  document.removeEventListener('mousemove', doDrag)
+  document.removeEventListener('mouseup', stopDrag)
 })
 
 // Fetch memos
@@ -197,16 +234,22 @@ onMounted(() => {
 <template>
   <Transition name="slide">
     <div v-if="isOpen" class="quick-note-panel">
-      <div class="panel-content" :style="{ height: panelHeight + 'px' }">
-        <!-- Resize Handle -->
-        <div class="resize-handle" @mousedown="startResize">
+      <div 
+        class="panel-content" 
+        :style="{ 
+          height: panelHeight + 'px',
+          transform: `translate(${panelPosition.x}px, ${panelPosition.y}px)`
+        }"
+      >
+        <!-- Resize Handle (top edge) -->
+        <div class="resize-handle" @mousedown.prevent="startResize">
           <div class="resize-bar"></div>
         </div>
         
-        <!-- Header -->
-        <div class="panel-header">
+        <!-- Header (draggable) -->
+        <div class="panel-header" @mousedown.prevent="startDrag">
           <h2>📝 快速笔记</h2>
-          <button @click="emit('close')" class="close-btn">×</button>
+          <button @click.stop="emit('close')" class="close-btn">×</button>
         </div>
         
         <!-- Input Area -->
@@ -345,6 +388,8 @@ onMounted(() => {
   padding: 12px 24px;
   border-bottom: 1px solid #27272a;
   flex-shrink: 0;
+  cursor: move;
+  user-select: none;
 }
 
 .panel-header h2 {
