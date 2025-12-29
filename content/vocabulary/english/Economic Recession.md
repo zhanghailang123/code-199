@@ -1,15 +1,14 @@
 ---
 id: "vocab-economic-recession"
-word: Economic Recession
-phonetic: /ˌiːkəˈnɒmɪk rɪˈseʃn/
-tags: ["考研", "经济学", "阅读高频", "写作必备"]
+word: "Economic Recession"
+phonetic: "/ˌiːkəˈnɒmɪk rɪˈseʃn/"
+tags: ["考研","经济学","阅读高频","写作必备"]
 status: "completed"
-definitions:
-  - part: n.
-    translation: 经济衰退
-    text: A period of temporary economic decline during which trade and industrial activity are reduced, generally identified by a fall in GDP in two successive quarters.
-related_questions: ["经济衰退的原因是什么?", "经济衰退和经济萧条的区别", "如何应对经济衰退?"]
+definitions: [{"part":"n.","translation":"经济衰退","text":"A period of temporary economic decline during which trade and industrial activity are reduced, generally identified by a fall in GDP in two successive quarters."}]
+related_questions: ["经济衰退的原因是什么?","经济衰退和经济萧条的区别","如何应对经济衰退?"]
+notes: [{"id":"note-1766972468892","anchor":"### 一、 核心记忆锚点（Root & Logic）","content":"没有说明recession是什么意思啊","created":"2025-12-29","updated":"2025-12-29"}]
 ---
+
 考研党你好！今天咱们要死磕的这个硬骨头是 **Economic Recession**。别一看俩单词就头大，它在考研阅读里的地位，堪比经济话题的“守门员”，搞定它，你就拿到了进入经济类文章的VIP门票！
 
 ### 一、 核心记忆锚点（Root & Logic）

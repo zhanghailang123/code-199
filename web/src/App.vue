@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onErrorCaptured } from 'vue'
+import QuickNoteFAB from './components/QuickNoteFAB.vue'
 
 // Global error state to show user-friendly error UI
 const globalError = ref(null)
@@ -96,6 +97,9 @@ function clearError() {
         </transition>
       </router-view>
     </main>
+    
+    <!-- Quick Notes FAB -->
+    <QuickNoteFAB />
   </div>
 </template>
 

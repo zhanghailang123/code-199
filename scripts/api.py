@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional, List
 import os
+import json
 import yaml
 from pathlib import Path
 
@@ -1070,6 +1071,117 @@ knowledge_points:
             })
             
     return {"results": results}
+
+
+# ====== Quick Notes / Memos API ======
+MEMOS_DIR = CONTENT_DIR / "memos"
+MEMOS_DIR.mkdir(parents=True, exist_ok=True)
+
+class MemoCreate(BaseModel):
+    content: str
+    tags: List[str] = []
+    pinned: bool = False
+
+class MemoUpdate(BaseModel):
+    content: Optional[str] = None
+    tags: Optional[List[str]] = None
+    pinned: Optional[bool] = None
+
+def get_memo_file_path(date_str: str = None) -> Path:
+    """Get path to memo file for a specific date."""
+    if not date_str:
+        from datetime import datetime
+        date_str = datetime.now().strftime("%Y-%m-%d")
+    return MEMOS_DIR / f"{date_str}.json"
+
+def load_memos_from_file(file_path: Path) -> List[dict]:
+    """Load memos from a JSON file."""
+    if not file_path.exists():
+        return []
+    try:
+        return json.loads(file_path.read_text(encoding="utf-8"))
+    except:
+        return []
+
+def save_memos_to_file(file_path: Path, memos: List[dict]):
+    """Save memos to a JSON file."""
+    file_path.write_text(json.dumps(memos, ensure_ascii=False, indent=2), encoding="utf-8")
+
+@app.get("/api/memos")
+def list_memos(limit: int = 50):
+    """List all memos across all dates, sorted by created time desc."""
+    all_memos = []
+    
+    # Read all memo files
+    for file_path in sorted(MEMOS_DIR.glob("*.json"), reverse=True):
+        memos = load_memos_from_file(file_path)
+        all_memos.extend(memos)
+    
+    # Sort by created time (newest first)
+    all_memos.sort(key=lambda x: x.get("created", ""), reverse=True)
+    
+    return {"memos": all_memos[:limit]}
+
+@app.post("/api/memos")
+def create_memo(memo: MemoCreate):
+    """Create a new memo."""
+    from datetime import datetime
+    import time
+    
+    now = datetime.now()
+    date_str = now.strftime("%Y-%m-%d")
+    file_path = get_memo_file_path(date_str)
+    
+    memos = load_memos_from_file(file_path)
+    
+    new_memo = {
+        "id": f"memo-{int(time.time() * 1000)}",
+        "content": memo.content,
+        "tags": memo.tags,
+        "pinned": memo.pinned,
+        "created": now.isoformat(),
+        "updated": now.isoformat()
+    }
+    
+    memos.insert(0, new_memo)  # Add to beginning
+    save_memos_to_file(file_path, memos)
+    
+    return {"success": True, "memo": new_memo}
+
+@app.put("/api/memos/{memo_id}")
+def update_memo(memo_id: str, update: MemoUpdate):
+    """Update an existing memo."""
+    from datetime import datetime
+    
+    # Search across all files
+    for file_path in MEMOS_DIR.glob("*.json"):
+        memos = load_memos_from_file(file_path)
+        for i, m in enumerate(memos):
+            if m.get("id") == memo_id:
+                if update.content is not None:
+                    memos[i]["content"] = update.content
+                if update.tags is not None:
+                    memos[i]["tags"] = update.tags
+                if update.pinned is not None:
+                    memos[i]["pinned"] = update.pinned
+                memos[i]["updated"] = datetime.now().isoformat()
+                save_memos_to_file(file_path, memos)
+                return {"success": True, "memo": memos[i]}
+    
+    raise HTTPException(status_code=404, detail="Memo not found")
+
+@app.delete("/api/memos/{memo_id}")
+def delete_memo(memo_id: str):
+    """Delete a memo."""
+    for file_path in MEMOS_DIR.glob("*.json"):
+        memos = load_memos_from_file(file_path)
+        original_len = len(memos)
+        memos = [m for m in memos if m.get("id") != memo_id]
+        if len(memos) < original_len:
+            save_memos_to_file(file_path, memos)
+            return {"success": True}
+    
+    raise HTTPException(status_code=404, detail="Memo not found")
 
 
 if __name__ == "__main__":
