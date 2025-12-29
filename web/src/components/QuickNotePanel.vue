@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { API_BASE } from '../config/api.js'
 
 const props = defineProps({
@@ -17,6 +17,42 @@ const loading = ref(false)
 const saving = ref(false)
 const editingId = ref(null)
 const editingContent = ref('')
+
+// Panel resize state
+const panelHeight = ref(320)
+const isResizing = ref(false)
+const startY = ref(0)
+const startHeight = ref(0)
+
+function startResize(e) {
+  isResizing.value = true
+  startY.value = e.clientY
+  startHeight.value = panelHeight.value
+  document.addEventListener('mousemove', doResize)
+  document.addEventListener('mouseup', stopResize)
+  document.body.style.cursor = 'ns-resize'
+  document.body.style.userSelect = 'none'
+}
+
+function doResize(e) {
+  if (!isResizing.value) return
+  const delta = startY.value - e.clientY
+  const newHeight = Math.min(Math.max(startHeight.value + delta, 200), window.innerHeight * 0.8)
+  panelHeight.value = newHeight
+}
+
+function stopResize() {
+  isResizing.value = false
+  document.removeEventListener('mousemove', doResize)
+  document.removeEventListener('mouseup', stopResize)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+}
+
+onUnmounted(() => {
+  document.removeEventListener('mousemove', doResize)
+  document.removeEventListener('mouseup', stopResize)
+})
 
 // Fetch memos
 async function fetchMemos() {
@@ -160,8 +196,13 @@ onMounted(() => {
 
 <template>
   <Transition name="slide">
-    <div v-if="isOpen" class="quick-note-panel" @click.self="emit('close')">
-      <div class="panel-content">
+    <div v-if="isOpen" class="quick-note-panel">
+      <div class="panel-content" :style="{ height: panelHeight + 'px' }">
+        <!-- Resize Handle -->
+        <div class="resize-handle" @mousedown="startResize">
+          <div class="resize-bar"></div>
+        </div>
+        
         <!-- Header -->
         <div class="panel-header">
           <h2>📝 快速笔记</h2>
@@ -173,7 +214,7 @@ onMounted(() => {
           <textarea 
             v-model="newContent"
             placeholder="记录你的想法..."
-            rows="3"
+            rows="20"
             class="memo-input"
             @keydown.ctrl.enter="createMemo"
           ></textarea>
@@ -249,26 +290,52 @@ onMounted(() => {
 <style scoped>
 .quick-note-panel {
   position: fixed;
-  inset: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 1000;
   display: flex;
   align-items: flex-end;
-  background: rgba(0, 0, 0, 0.5);
+  pointer-events: none;
 }
 
 .panel-content {
   width: 100%;
   max-width: 900px;
-  max-height: 50vh;
+  min-height: 200px;
   margin: 0 auto;
   background: #0a0a0b;
-  border-top: 1px solid #27272a;
-  border-left: 1px solid #27272a;
-  border-right: 1px solid #27272a;
+  border-top: 1px solid #3f3f46;
+  border-left: 1px solid #3f3f46;
+  border-right: 1px solid #3f3f46;
   border-radius: 16px 16px 0 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  pointer-events: auto;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.resize-handle {
+  flex-shrink: 0;
+  height: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: ns-resize;
+  background: transparent;
+}
+
+.resize-handle:hover .resize-bar {
+  background: #52525b;
+}
+
+.resize-bar {
+  width: 40px;
+  height: 4px;
+  background: #3f3f46;
+  border-radius: 2px;
+  transition: background 0.2s;
 }
 
 .panel-header {
@@ -320,7 +387,9 @@ onMounted(() => {
   border-radius: 8px;
   color: #f4f4f5;
   font-size: 14px;
-  resize: none;
+  min-height: 100px;
+  max-height: 200px;
+  resize: vertical;
 }
 
 .memo-input:focus {
