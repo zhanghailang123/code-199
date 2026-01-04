@@ -87,7 +87,20 @@ async function testConnection() {
   testing.value = true
   testResult.value = null
   try {
-    const res = await fetch(`${API_BASE}/api/config/test`, { method: 'POST' })
+    const testData = {
+      base_url: config.value.base_url,
+      model: config.value.model
+    }
+    // Only send API key if user entered a new one, otherwise backend uses saved key
+    if (newApiKey.value.trim()) {
+      testData.api_key = newApiKey.value.trim()
+    }
+
+    const res = await fetch(`${API_BASE}/api/config/test`, { 
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(testData)
+    })
     const data = await res.json()
     testResult.value = data
   } catch (e) {

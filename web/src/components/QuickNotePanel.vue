@@ -30,6 +30,17 @@ const isDragging = ref(false)
 const dragStartPos = ref({ x: 0, y: 0 })
 const dragStartOffset = ref({ x: 0, y: 0 })
 
+// Memo expansion state
+const expandedMemos = ref(new Set())
+
+function toggleExpand(id) {
+  if (expandedMemos.value.has(id)) {
+    expandedMemos.value.delete(id)
+  } else {
+    expandedMemos.value.add(id)
+  }
+}
+
 function startResize(e) {
   isResizing.value = true
   startY.value = e.clientY
@@ -284,6 +295,14 @@ onMounted(() => {
               {{ saving ? '保存中...' : '保存' }}
             </button>
           </div>
+          
+          <!-- Bottom Drag Handle (for when top is off-screen) -->
+          <div 
+            class="bottom-drag-handle"
+            @mousedown.prevent="startDrag"
+          >
+            <div class="bottom-drag-bar"></div>
+          </div>
         </div>
         
         <!-- Memo List -->
@@ -309,7 +328,21 @@ onMounted(() => {
                 
                 <!-- View Mode -->
                 <template v-else>
-                  <div class="memo-content">{{ memo.content }}</div>
+                  <div 
+                    class="memo-content" 
+                    :class="{ 'expanded': expandedMemos.has(memo.id) }"
+                  >
+                    {{ memo.content }}
+                  </div>
+                  
+                  <div 
+                    v-if="memo.content.length > 60 || memo.content.includes('\n')" 
+                    class="expand-toggle"
+                    @click.stop="toggleExpand(memo.id)"
+                  >
+                    {{ expandedMemos.has(memo.id) ? '收起' : '展开' }}
+                  </div>
+
                   <div class="memo-footer">
                     <div class="memo-meta">
                       <span v-for="tag in memo.tags" :key="tag" class="memo-tag">#{{ tag }}</span>
@@ -419,9 +452,43 @@ onMounted(() => {
 }
 
 .input-area {
-  padding: 12px 24px;
+  padding: 12px 24px 24px 24px; /* Increased bottom padding for grasp area */
   border-bottom: 1px solid #27272a;
   flex-shrink: 0;
+  position: relative;
+}
+
+.bottom-drag-handle {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 24px; /* Increased height slightly */
+  cursor: move;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: transparent;
+  transition: background 0.2s;
+}
+
+.bottom-drag-handle:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.bottom-drag-bar {
+  width: 60px; /* Wider bar */
+  height: 4px;
+  background: #3f3f46;
+  border-radius: 2px;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.bottom-drag-handle:hover .bottom-drag-bar {
+  opacity: 1;
+  background: #52525b;
 }
 
 .memo-input {
@@ -540,7 +607,7 @@ onMounted(() => {
 .date-group {
   display: flex;
   flex-direction: column;
-  min-width: 280px;
+  width: 300px; /* Fixed width instead of min-width */
   flex-shrink: 0;
 }
 
@@ -566,9 +633,30 @@ onMounted(() => {
   font-size: 13px;
   line-height: 1.5;
   white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 60px;
+  word-break: break-all; /* Force break for long URLs */
+  max-height: 72px; /* ~3-4 lines */
   overflow: hidden;
+  position: relative;
+  transition: max-height 0.3s ease;
+}
+
+.memo-content.expanded {
+  max-height: none;
+  overflow: visible;
+}
+
+.expand-toggle {
+  font-size: 12px;
+  color: #3b82f6;
+  cursor: pointer;
+  margin-top: 4px;
+  display: inline-block;
+  opacity: 0.8;
+}
+
+.expand-toggle:hover {
+  opacity: 1;
+  text-decoration: underline;
 }
 
 .memo-footer {

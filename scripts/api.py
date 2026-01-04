@@ -825,6 +825,53 @@ def update_chapter_content(chapter_id: str, request: UpdateContentRequest):
     raise HTTPException(status_code=404, detail=f"Chapter {chapter_id} not found")
 
 
+# ====== Curriculum Endpoints ======
+
+class CurriculumChapterCreate(BaseModel):
+    id: str
+    title: str
+    subject: str
+    type: str = "topic"
+    description: str = ""
+    status: str = "not_started"
+
+@app.post("/api/curriculum")
+def create_curriculum_chapter(chapter: CurriculumChapterCreate):
+    """Create a new curriculum chapter."""
+    subject_dir = CURRICULUM_DIR / chapter.subject
+    subject_dir.mkdir(parents=True, exist_ok=True)
+    
+    file_path = subject_dir / f"{chapter.id}.md"
+    
+    if file_path.exists():
+        raise HTTPException(status_code=400, detail=f"Chapter {chapter.id} already exists")
+    
+    # Generate content
+    frontmatter = {
+        "id": chapter.id,
+        "title": chapter.title,
+        "subject": chapter.subject,
+        "type": chapter.type,
+        "status": chapter.status
+    }
+    
+    yaml_content = yaml.dump(frontmatter, allow_unicode=True, default_flow_style=False)
+    
+    md_content = f"""---
+{yaml_content.strip()}
+---
+
+{chapter.description}
+
+## 核心考点
+
+## 典型例题
+"""
+    file_path.write_text(md_content, encoding="utf-8")
+    
+    return {"message": "Chapter created successfully", "id": chapter.id, "path": str(file_path)}
+
+
 # ====== PDF Upload Endpoints ======
 
 from fastapi import File, UploadFile
@@ -1258,32 +1305,131 @@ def update_config(llm_config: LLMConfigUpdate):
         raise HTTPException(status_code=500, detail=f"Failed to save config: {e}")
 
 @app.post("/api/config/test")
-def test_llm_connection():
-    """Test LLM connection with current config."""
+def test_llm_connection(config_update: Optional[LLMConfigUpdate] = None):
+    """Test LLM connection. Uses provided config or falls back to saved config."""
+    print("--- Starting LLM Connection Test ---")
     try:
         from openai import OpenAI
+        import httpx
         
+        # Default defaults
+        base_url = "https://api.openai.com/v1"
+        api_key = ""
+        model = "gpt-4o-mini"
+        
+        # Load saved config first
         if CONFIG_PATH.exists():
-            config = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
-        else:
-            return {"success": False, "error": "Config not found"}
+            saved_config = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8"))
+            llm = saved_config.get("llm", {})
+            base_url = llm.get("base_url", base_url)
+            api_key = llm.get("api_key", api_key)
+            model = llm.get("model", model)
+            
+        # Override with provided values if any
+        if config_update:
+            if config_update.api_key:
+                api_key = config_update.api_key
+            if config_update.base_url:
+                base_url = config_update.base_url
+            if config_update.model:
+                model = config_update.model
         
-        llm = config.get("llm", {})
-        client = OpenAI(
-            api_key=llm.get("api_key", ""),
-            base_url=llm.get("base_url", "https://api.openai.com/v1")
+        print(f"Base URL: {base_url}")
+        print(f"Model: {model}")
+        print(f"API Key: {mask_api_key(api_key)}")
+        
+        # Check for common configuration errors
+        if "generateContent" in base_url or "google" in base_url:
+            return {
+                "success": False, 
+                "error": "检测到您输入的是 Google 原生 API 地址。本系统使用 OpenAI 兼容协议，请尝试将 Base URL 改为服务商提供的 OpenAI 接口地址（通常以 /v1 结尾，如 https://new.123nhh.xyz/v1）。"
+            }
+        
+        # Use custom http client with User-Agent and other headers to avoid blocks
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Referer": "https://www.google.com/",
+            "Origin": "https://www.google.com",
+            "Connection": "keep-alive"
+        }
+        
+        http_client = httpx.Client(
+            headers=headers,
+            verify=False, # Optional: ignore SSL errors for some proxies
+            timeout=30.0
         )
+            
+        client = OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            http_client=http_client
+        )
+        
+        print(f"Sending request to {base_url} with model {model}...")
         
         # Simple test call
         response = client.chat.completions.create(
-            model=llm.get("model", "gpt-4o-mini"),
+            model=model,
             messages=[{"role": "user", "content": "Hello"}],
             max_tokens=5
         )
         
-        return {"success": True, "message": "连接成功！", "model": llm.get("model")}
+        print("Success! Response received.")
+        return {"success": True, "message": "连接成功！", "model": model}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        print(f"Connection Failed: {str(e)}")
+        error_msg = str(e)
+        
+        # If blocked, try raw request to debug (and fallback to success if it works)
+        if "blocked" in error_msg.lower() or "403" in error_msg or "401" in error_msg:
+            try:
+                print("Attempting raw request to bypass block...")
+                raw_url = f"{base_url}/chat/completions" if not base_url.endswith("/") else f"{base_url}chat/completions"
+                # Handle base_url strictness
+                if "v1" not in base_url and "v1" not in raw_url:
+                     raw_url = f"{base_url}/v1/chat/completions"
+                
+                raw_res = httpx.post(
+                    raw_url,
+                    json={
+                        "model": model,
+                        "messages": [{"role": "user", "content": "Hello"}],
+                        "max_tokens": 5
+                    },
+                    headers={
+                        "Authorization": f"Bearer {api_key}",
+                        **headers
+                    },
+                    verify=False,
+                    timeout=10
+                )
+                print(f"Raw Response Status: {raw_res.status_code}")
+                # print(f"Raw Response Body: {raw_res.text[:500]}")
+                
+                if raw_res.status_code == 200:
+                    print("Raw request succeeded! Returning success to frontend.")
+                    return {"success": True, "message": "连接成功 (经由 Raw Request)！", "model": model}
+                    
+            except Exception as raw_e:
+                print(f"Raw debug request also failed: {raw_e}")
+
+        # Provide hints for common errors
+        if "contents is required" in error_msg:
+            return {
+                "success": False,
+                "error": f"连接失败：API 返回格式错误。您可能使用了原生 Gemini 接口地址，请将 Base URL 改为 OpenAI 兼容地址（如 https://new.123nhh.xyz/v1）。\n\n详细错误: {error_msg}"
+            }
+        
+        if "blocked" in error_msg.lower():
+             return {
+                "success": False,
+                "error": f"连接被拒绝 (Blocked)。服务商拦截了请求。\n建议更换 Base URL 或尝试其他模型。\n\n详细错误: {error_msg}"
+            }
+            
+        return {"success": False, "error": error_msg}
 
 
 if __name__ == "__main__":

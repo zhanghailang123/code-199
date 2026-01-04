@@ -1,9 +1,28 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { marked } from 'marked'
+// import { marked } from 'marked' // Removed
 import { API_BASE } from '../config/api.js'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
+
+// ByteMD Imports for Viewer
+import { Viewer } from '@bytemd/vue-next'
+import gfm from '@bytemd/plugin-gfm'
+import highlight from '@bytemd/plugin-highlight'
+import math from '@bytemd/plugin-math'
+import gemoji from '@bytemd/plugin-gemoji'
+import breaks from '@bytemd/plugin-breaks'
+import 'bytemd/dist/index.css'
+import 'highlight.js/styles/github-dark.css' 
+import 'katex/dist/katex.css'
+
+const plugins = [
+  gfm(),
+  breaks(),
+  highlight(),
+  math(),
+  gemoji(),
+]
 
 const router = useRouter()
 const loading = ref(true)
@@ -15,6 +34,50 @@ const chapterContent = ref(null) // This will now hold raw markdown
 const activeSubject = ref('all')
 const isEditing = ref(false)
 const saving = ref(false)
+
+// Create Modal State
+const showCreateModal = ref(false)
+const creating = ref(false)
+const newChapter = ref({
+  id: '',
+  title: '',
+  subject: 'math',
+  type: 'topic',
+  description: ''
+})
+
+async function createChapter() {
+  if (!newChapter.value.id || !newChapter.value.title) return
+  
+  creating.value = true
+  try {
+    const res = await fetch(`${API_BASE}/api/curriculum`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newChapter.value)
+    })
+    
+    if (!res.ok) {
+      const data = await res.json()
+      throw new Error(data.detail || '创建失败')
+    }
+    
+    showCreateModal.value = false
+    // Reset form
+    newChapter.value = {
+      id: '',
+      title: '',
+      subject: 'math',
+      type: 'topic',
+      description: ''
+    }
+    await loadCurriculum()
+  } catch (e) {
+    alert(e.message)
+  } finally {
+    creating.value = false
+  }
+}
 
 const filteredChapters = computed(() => {
   if (activeSubject.value === 'all') return chapters.value
@@ -74,53 +137,6 @@ async function saveChapter() {
   
   saving.value = true
   try {
-    // We need to parse the ID from the content or use the selectedChapter.id
-    // Here we assume ID matches selectedChapter.id for the path
-    
-    // NOTE: In a real app we might want to validate frontmatter structure
-    
-    // Currently api.py update_knowledge_point expects KnowledgePointCreate model structure in body
-    // BUT we are editing a CHAPTER (which are essentially just files in hierarchy).
-    // The current API structure for "curriculum" update is only for *status*.
-    // I need to add a generic file update for curriculum or reuse knowledge/question endpoints?
-    // Actually, looking at previous step, I implemented `update_knowledge_point` and `update_question`.
-    // Curriculum chapters are NOT questions or knowledge points in the strict sense of those directories.
-    // They are in `content/curriculum/...`.
-    
-    // Wait, the user asked for "show/edit for ALL frontend displayed questions/knowledge points".
-    // AND "curriculum" chapters.
-    // I need an endpoint for curriculum update too! 
-    // Implementing a quick fix endpoint on client side logic won't work without backend support.
-    
-    // Checking api.py... I didn't add `update_curriculum_chapter`!
-    // I added `update_question` and `update_knowledge_point`.
-    // This view is `CurriculumView.vue`.
-    
-    // Let's assume for this step I will only View/Preview.
-    // BUT the task says "Implement Markdown Editor".
-    // I should stop and fix API first? 
-    // "Questions and Knowledge Points" was the request. This is Curriculum.
-    // User: "对于所有前端展示的题目 知识点 能否实现md的编辑和预览"
-    
-    // The user's request specifically mentioned "Questions and Knowledge Points", 
-    // but the conversation context was about the Curriculum page layout.
-    // It is highly likely they want to edit THESE pages too.
-    
-    // I will add a fallback "Not Implemented" alert for save if not supported,
-    // OR I can quickly add the endpoint. 
-    // Let's add the endpoint in the next turn if needed, or assume I can use a generic one?
-    // No, let's just implement the UI for now and I will add the backend endpoint in a parallel step or next tool.
-    
-    // Just implemented View Mode logic mostly for now?
-    // NO, I must deliver editing.
-    // PROPOSAL: I will use the `replace_file_content` equivalent via API?
-    // I'll assume I need to add the endpoint.
-    
-    // I'll stick to view only for a second in this file update? No that's waste.
-    
-    // Okay, I will optimistically write the fetch call to `PUT /api/curriculum/{id}/content` 
-    // and then go implement it in API.
-    
     const res = await fetch(`${API_BASE}/api/curriculum/${selectedChapter.value.id}/content`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -148,43 +164,16 @@ function closeDetail() {
 
 // Handle Custom Link Clicks (Delegate)
 function handleEditorClick(e) {
-  // ByteMD renders markdown. We need to handle internal links if possible.
-  // But ByteMD's viewer captures clicks.
-  // We can try to attach a global listener or just let standard links work?
-  // Our `[[id]]` syntax needs a plugin or manual replacement.
-  // ByteMD doesn't support custom regex replacement out of the box easily without a plugin.
-  // For now, I will display Raw Markdown in "view" mode?
-  // No, `MarkdownEditor` has a viewer.
-  
-  // Custom Plugin for [[id]]?
-  // Creating a full Remark plugin is complex for this step.
-  // I will leave the `[[id]]` as text for now in the editor,
-  // Or I can post-process the HTML?
-  // ByteMD allows `sanitize` customization or viewer DOM manipulation?
-  
-  // Workaround: We use the Viewer but we can't easily inject the "Clickable Span" logic 
-  // without a proper Remark/Rehype plugin.
-  // 
-  // Strategy: For the "Preview" / "View" mode, I might still use `marked` + my custom replacement 
-  // IF I want to keep the custom badge links active.
-  // The Editor "Preview" pane might show them as text.
-  // 
-  // Compromise: Use ByteMD for EDITING. Use my custom `marked` renderer for VIEWING (Read-only).
-  // When Editing, you see raw markdown.
+  // Unused for now
 }
 
-// Render markdown with [[id]] links converted to clickable spans
+// Pre-process markdown to inject raw HTML spans for question links
 function renderWithLinks(mdContent) {
-  // First convert markdown to HTML
-  let html = marked(mdContent)
-  
-  // Then convert [[id]] syntax to clickable spans
-  // Pattern: [[some-question-id]]
-  html = html.replace(/\[\[([^\]]+)\]\]/g, (match, id) => {
+  // Regex replace [[id]] with HTML span
+  // ByteMD Viewer renders raw HTML by default.
+  return mdContent.replace(/\[\[([^\]]+)\]\]/g, (match, id) => {
     return `<span class="question-link" data-question-id="${id}">${id}</span>`
   })
-  
-  return html
 }
 
 // Handle clicks on content area (event delegation for question links)
@@ -214,7 +203,7 @@ const parsedChapter = computed(() => {
     content = fmMatch[2]
   }
   
-  // Split into Main Sections by H2 headers using a more robust method
+  // Split into Main Sections by H2 headers
   const sections = {}
   
   // Split by lines starting with "## "
@@ -241,12 +230,12 @@ const parsedChapter = computed(() => {
     sections[currentSection] = currentBody.join('\n').trim()
   }
   
-  // Fallback: full HTML if no sections matched
-  const fullHtml = marked(content)
+  // Fallback content (Markdown, not HTML)
+  const fullContent = content
   
   return {
     sections,
-    fullHtml
+    fullContent // Renamed from fullHtml
   }
 })
 
@@ -263,7 +252,10 @@ onMounted(() => {
         <h1 class="text-3xl font-extrabold text-white">📚 学习路径</h1>
         <p class="text-zinc-500 mt-1">系统化学习，逐章突破</p>
       </div>
-      <button @click="loadCurriculum" class="btn btn-primary" :disabled="loading">🔄 刷新</button>
+      <div class="flex gap-3">
+        <button @click="showCreateModal = true" class="btn bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700">➕ 新增章节</button>
+        <button @click="loadCurriculum" class="btn btn-primary" :disabled="loading">🔄 刷新</button>
+      </div>
     </header>
 
     <!-- ... (Progress and Tabs remain same) ... -->
@@ -353,107 +345,215 @@ onMounted(() => {
     </div>
 
     <!-- Chapter Detail Modal -->
-    <div v-if="selectedChapter" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div class="bg-[#09090b] w-full max-w-6xl h-[95vh] rounded-2xl flex flex-col border border-white/10 shadow-2xl overflow-hidden animate-fade-in relative">
-         <!-- Glow Effect -->
-         <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0 scale-95"
+      enter-to-class="opacity-100 scale-100"
+      leave-active-class="transition duration-150 ease-in"
+      leave-from-class="opacity-100 scale-100"
+      leave-to-class="opacity-0 scale-95"
+    >
+      <div v-if="selectedChapter" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+        <div class="bg-[#09090b] w-full max-w-6xl h-[95vh] rounded-2xl flex flex-col border border-white/10 shadow-2xl overflow-hidden animate-fade-in relative">
+           <!-- Glow Effect -->
+           <div class="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
 
-        <div class="p-4 border-b border-white/5 flex justify-between items-center bg-zinc-900/50 flex-shrink-0">
-          <div>
-             <div class="flex items-center gap-2 mb-1">
-                <span class="text-xs px-2 py-0.5 rounded border font-medium uppercase tracking-wider" 
-                      :class="subjectLabels[selectedChapter.subject]?.color">
-                  {{ selectedChapter.subject }}
-                </span>
-                <span class="text-zinc-500 text-xs font-mono">ID: {{ selectedChapter.id }}</span>
-             </div>
-            <h2 class="text-xl font-bold text-white">{{ selectedChapter.title }}</h2>
+          <div class="p-4 border-b border-white/5 flex justify-between items-center bg-zinc-900/50 flex-shrink-0">
+            <div>
+               <div class="flex items-center gap-2 mb-1">
+                  <span class="text-xs px-2 py-0.5 rounded border font-medium uppercase tracking-wider" 
+                        :class="subjectLabels[selectedChapter.subject]?.color">
+                    {{ selectedChapter.subject }}
+                  </span>
+                  <span class="text-zinc-500 text-xs font-mono">ID: {{ selectedChapter.id }}</span>
+               </div>
+              <h2 class="text-xl font-bold text-white">{{ selectedChapter.title }}</h2>
+            </div>
+            
+            <div class="flex items-center gap-3">
+               <button @click="isEditing = !isEditing" 
+                      class="btn btn-ghost text-sm flex items-center gap-2"
+                      :class="isEditing ? 'text-blue-400 bg-blue-500/10' : 'text-zinc-400'">
+                 {{ isEditing ? '👁️ 预览' : '✏️ 编辑' }}
+               </button>
+               
+               <button v-if="isEditing" 
+                       @click="saveChapter" 
+                       class="btn btn-primary text-sm py-1.5"
+                       :disabled="saving">
+                  {{ saving ? '保存中...' : '💾 保存' }}
+               </button>
+               
+               <div class="w-px h-6 bg-white/10 mx-2"></div>
+               
+               <button @click="closeDetail" class="text-zinc-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg">
+                  ✕
+               </button>
+            </div>
           </div>
           
-          <div class="flex items-center gap-3">
-             <button @click="isEditing = !isEditing" 
-                    class="btn btn-ghost text-sm flex items-center gap-2"
-                    :class="isEditing ? 'text-blue-400 bg-blue-500/10' : 'text-zinc-400'">
-               {{ isEditing ? '👁️ 预览' : '✏️ 编辑' }}
-             </button>
+          <!-- Editor / Viewer Area -->
+          <div class="flex-1 overflow-hidden relative bg-[#09090b]">
+             <!-- MODE: EDIT -->
+             <MarkdownEditor 
+                v-if="isEditing"
+                v-model:value="chapterContent"
+                mode="split" 
+                :readonly="false"
+                class="h-full"
+             />
              
-             <button v-if="isEditing" 
-                     @click="saveChapter" 
-                     class="btn btn-primary text-sm py-1.5"
-                     :disabled="saving">
-                {{ saving ? '保存中...' : '💾 保存' }}
-             </button>
-             
-             <div class="w-px h-6 bg-white/10 mx-2"></div>
-             
-             <button @click="closeDetail" class="text-zinc-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg">
-                ✕
-             </button>
+             <!-- MODE: VIEW (Rich Styled) -->
+             <div v-else-if="parsedChapter" @click="handleContentClick" class="h-full overflow-y-auto p-8 space-y-8 scrollbar-custom">
+               
+               <!-- Learning Objectives -->
+               <section v-if="parsedChapter.sections['学习目标']" class="bg-indigo-500/5 rounded-xl p-6 border-l-4 border-indigo-500">
+                 <h3 class="text-lg font-bold text-indigo-400 mb-4 flex items-center gap-2">
+                   <span>🎯</span> 学习目标
+                 </h3>
+                 <Viewer :value="renderWithLinks(parsedChapter.sections['学习目标'])" :plugins="plugins" />
+               </section>
+               
+               <!-- Core Content -->
+               <section v-if="parsedChapter.sections['核心内容']" class="bg-zinc-800/40 rounded-xl p-8 border border-white/5 shadow-sm">
+                  <h3 class="text-xl font-bold text-blue-200 mb-6 flex items-center gap-3">
+                   <span>📚</span> 核心内容
+                 </h3>
+                 <Viewer :value="renderWithLinks(parsedChapter.sections['核心内容'])" :plugins="plugins" />
+               </section>
+               
+               <!-- Learning Advice -->
+               <section v-if="parsedChapter.sections['学习建议']" class="bg-amber-500/10 rounded-xl p-6 border-l-4 border-amber-500/50">
+                 <h3 class="text-lg font-bold text-amber-300 mb-4 flex items-center gap-2">
+                   <span>💡</span> 学习建议
+                 </h3>
+                 <Viewer :value="renderWithLinks(parsedChapter.sections['学习建议'])" :plugins="plugins" />
+               </section>
+               
+               <!-- Other Sections -->
+               <template v-for="(body, title) in parsedChapter.sections" :key="title">
+                 <section 
+                   v-if="!['学习目标', '核心内容', '学习建议'].includes(title)"
+                   class="bg-zinc-800/30 rounded-xl p-6 border border-white/5"
+                 >
+                   <h3 class="text-lg font-bold text-zinc-200 mb-4 flex items-center gap-2">
+                     <span>📄</span> {{ title }}
+                   </h3>
+                   <Viewer :value="renderWithLinks(body)" :plugins="plugins" />
+                 </section>
+               </template>
+               
+               <!-- Fallback -->
+               <div v-if="Object.keys(parsedChapter.sections).length === 0">
+                    <Viewer :value="parsedChapter.fullContent" :plugins="plugins" />
+               </div>
+             </div>
+          </div>
+          
+          <!-- Footer (Hidden/None) -->
+        </div>
+      </div>
+    </Transition>
+
+    <!-- Create Chapter Modal -->
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0 scale-95"
+      enter-to-class="opacity-100 scale-100"
+      leave-active-class="transition duration-150 ease-in"
+      leave-from-class="opacity-100 scale-100"
+      leave-to-class="opacity-0 scale-95"
+    >
+      <div v-if="showCreateModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6" @click.self="showCreateModal = false">
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" @click="showCreateModal = false"></div>
+
+        <!-- Modal Content -->
+        <div class="relative bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+          
+          <!-- Header -->
+          <div class="flex justify-between items-center p-4 border-b border-zinc-800 bg-zinc-900/50">
+            <h3 class="text-lg font-semibold text-white">新增章节</h3>
+            <button @click="showCreateModal = false" class="text-zinc-500 hover:text-white transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- Body -->
+          <div class="p-6 overflow-y-auto space-y-4">
+            
+            <!-- Subject -->
+            <div>
+              <label class="block text-sm font-medium text-zinc-400 mb-1">科目</label>
+              <select v-model="newChapter.subject" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none">
+                <option value="math">数学</option>
+                <option value="logic">逻辑</option>
+                <option value="english">英语</option>
+              </select>
+            </div>
+
+            <!-- Chapter ID -->
+            <div>
+              <label class="block text-sm font-medium text-zinc-400 mb-1">章节 ID (文件名)</label>
+              <input 
+                v-model="newChapter.id" 
+                type="text" 
+                placeholder="例如：math-geometry-01" 
+                class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none font-mono text-sm"
+              >
+              <p class="text-xs text-zinc-500 mt-1">建议使用英文和连字符，如 logic-formal-02</p>
+            </div>
+
+            <!-- Title -->
+            <div>
+              <label class="block text-sm font-medium text-zinc-400 mb-1">章节标题</label>
+              <input 
+                v-model="newChapter.title" 
+                type="text" 
+                placeholder="例如：平面几何基础" 
+                class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none"
+              >
+            </div>
+            
+            <!-- Type -->
+             <div>
+              <label class="block text-sm font-medium text-zinc-400 mb-1">类型</label>
+              <select v-model="newChapter.type" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none">
+                <option value="topic">知识点讲解</option>
+                <option value="practice">习题训练</option>
+              </select>
+            </div>
+
+            <!-- Description -->
+            <div>
+              <label class="block text-sm font-medium text-zinc-400 mb-1">简要描述</label>
+              <textarea 
+                v-model="newChapter.description" 
+                rows="3" 
+                placeholder="本章主要讲解..." 
+                class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none"
+              ></textarea>
+            </div>
+
+          </div>
+
+          <!-- Footer -->
+          <div class="p-4 border-t border-zinc-800 bg-zinc-900/50 flex justify-end gap-3">
+            <button @click="showCreateModal = false" class="px-4 py-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors">取消</button>
+            <button 
+              @click="createChapter" 
+              :disabled="creating || !newChapter.id || !newChapter.title"
+              class="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              <span v-if="creating" class="animate-spin h-4 w-4 border-2 border-white/20 border-t-white rounded-full"></span>
+              {{ creating ? '创建中...' : '立即创建' }}
+            </button>
           </div>
         </div>
-        
-        <!-- Editor / Viewer Area -->
-        <div class="flex-1 overflow-hidden relative bg-[#09090b]">
-           <!-- MODE: EDIT -->
-           <MarkdownEditor 
-              v-if="isEditing"
-              v-model:value="chapterContent"
-              mode="split" 
-              :readonly="false"
-              class="h-full"
-           />
-           
-           <!-- MODE: VIEW (Rich Styled) -->
-           <div v-else-if="parsedChapter" @click="handleContentClick" class="h-full overflow-y-auto p-8 space-y-8 scrollbar-custom">
-             
-             <!-- Learning Objectives (Using known section name '学习目标') -->
-             <section v-if="parsedChapter.sections['学习目标']" class="bg-indigo-500/5 rounded-xl p-6 border-l-4 border-indigo-500">
-               <h3 class="text-lg font-bold text-indigo-400 mb-4 flex items-center gap-2">
-                 <span class="text-2xl">🎯</span> 学习目标
-               </h3>
-               <div class="prose-content text-zinc-300 leading-relaxed" v-html="marked(parsedChapter.sections['学习目标'])"></div>
-             </section>
-             
-             <!-- Core Content (Using known section name '核心内容') -->
-             <section v-if="parsedChapter.sections['核心内容']" class="bg-zinc-800/40 rounded-xl p-8 border border-white/5 shadow-sm">
-                <h3 class="text-xl font-bold text-blue-200 mb-6 flex items-center gap-3">
-                 <span class="text-2xl">📚</span> 核心内容
-               </h3>
-               <div class="prose-content text-zinc-200 leading-relaxed" v-html="marked(parsedChapter.sections['核心内容'])"></div>
-             </section>
-             
-             <!-- Learning Advice (Using known section name '学习建议') -->
-             <section v-if="parsedChapter.sections['学习建议']" class="bg-amber-500/10 rounded-xl p-6 border-l-4 border-amber-500/50">
-               <h3 class="text-lg font-bold text-amber-300 mb-4 flex items-center gap-2">
-                 <span class="text-2xl">💡</span> 学习建议
-               </h3>
-               <div class="prose-content text-zinc-300" v-html="marked(parsedChapter.sections['学习建议'])"></div>
-             </section>
-             
-             <!-- Other Sections (Dynamic rendering for non-hardcoded sections) -->
-             <template v-for="(body, title) in parsedChapter.sections" :key="title">
-               <section 
-                 v-if="!['学习目标', '核心内容', '学习建议'].includes(title)"
-                 class="bg-zinc-800/30 rounded-xl p-6 border border-white/5"
-               >
-                 <h3 class="text-lg font-bold text-zinc-200 mb-4 flex items-center gap-2">
-                   <span class="text-2xl">📄</span> {{ title }}
-                 </h3>
-                 <div class="prose-content text-zinc-300" v-html="renderWithLinks(body)"></div>
-               </section>
-             </template>
-             
-             <!-- Fallback: Just show full HTML if no specific sections matched -->
-             <div v-if="Object.keys(parsedChapter.sections).length === 0" 
-                  class="prose-content text-zinc-300" 
-                  v-html="parsedChapter.fullHtml">
-             </div>
-           </div>
-        </div>
-        
-        <!-- Footer (Hidden/None) -->
       </div>
-    </div>
+    </Transition>
   </div>
 </template>
 
