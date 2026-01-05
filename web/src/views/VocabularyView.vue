@@ -144,6 +144,31 @@ async function copyToClipboard(text, id, e) {
   }
 }
 
+// Delete word
+async function deleteWord(item, e) {
+  e.stopPropagation() // Prevent card click
+  if (!confirm(`确定要删除单词 "${item.word}" 吗？\n此操作不可恢复。`)) return
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/vocabulary/${item.id}`, {
+      method: 'DELETE'
+    })
+    
+    if (res.ok) {
+      // Remove from local list
+      items.value = items.value.filter(i => i.id !== item.id)
+      // Close detail if open
+      if (selectedItem.value && selectedItem.value.id === item.id) {
+        selectedItem.value = null
+      }
+    } else {
+      alert('删除失败')
+    }
+  } catch (e) {
+    alert('删除失败: ' + e.message)
+  }
+}
+
 onMounted(() => {
   loadVocabulary()
 })
@@ -254,6 +279,13 @@ onMounted(() => {
                        >
                          <span v-if="copiedId === item.id" class="text-xs">✓</span>
                          <span v-else class="text-xs">📋</span>
+                       </button>
+                       <button 
+                         @click="(e) => deleteWord(item, e)"
+                         class="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-500/10 rounded flex items-center justify-center text-zinc-500 hover:text-red-400"
+                         title="删除单词"
+                       >
+                         <span class="text-xs">🗑️</span>
                        </button>
                    </div>
                    <div class="flex items-center gap-2">

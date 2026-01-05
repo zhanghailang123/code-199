@@ -1231,6 +1231,29 @@ def delete_memo(memo_id: str):
     raise HTTPException(status_code=404, detail="Memo not found")
 
 
+# ====== Vocabulary Deletion Endpoint ======
+
+@app.delete("/api/vocabulary/{vocab_id}")
+def delete_vocabulary(vocab_id: str):
+    """Delete a vocabulary word file."""
+    # Try ID first
+    if VOCABULARY_DIR.exists():
+        for file in VOCABULARY_DIR.glob("*.md"):
+            content = file.read_text(encoding="utf-8")
+            meta = parse_frontmatter(content)
+            if meta.get("id") == vocab_id:
+                file.unlink()
+                return {"success": True, "message": "Deleted by ID"}
+    
+    # Try filename
+    file_path = VOCABULARY_DIR / f"{vocab_id}.md"
+    if file_path.exists():
+        file_path.unlink()
+        return {"success": True, "message": "Deleted by filename"}
+        
+    raise HTTPException(status_code=404, detail="Vocabulary word not found")
+
+
 # ====== System Configuration API ======
 CONFIG_PATH = CONTENT_DIR.parent / "config" / "config.yaml"
 
