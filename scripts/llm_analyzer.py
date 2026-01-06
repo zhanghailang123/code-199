@@ -547,5 +547,121 @@ def generate_vocabulary_article(word: str) -> str:
         # Fallback
         return f"---\nid: vocab-{word.lower()}\nword: {word}\nstatus: learning\n---\n\n## Generation Failed\n\nError: {e}"
 
+def generate_vocab_card(word: str, phonetic: str, definitions) -> dict:
+    """
+    Generate clean card content for export using LLM.
+    
+    Args:
+        word: The vocabulary word
+        phonetic: Phonetic transcription
+        definitions: List of definition dicts with 'pos' and 'meaning' (or string)
+    
+    Returns:
+        Dict with card_data: {definition, memory_tip, example}
+    """
+    client = get_client()
+    model = get_model()
+    
+    # Handle different formats of definitions
+    import json
+    
+    # Try to parse string as JSON if it looks like a list
+    if isinstance(definitions, str) and definitions.strip().startswith('['):
+        try:
+            definitions = json.loads(definitions)
+        except json.JSONDecodeError:
+            pass
+            
+    def_text = ""
+    if isinstance(definitions, list) and definitions:
+        def_parts = []
+        for d in definitions[:2]:
+            if isinstance(d, dict):
+                # Handle various key names for part of speech and meaning
+                pos = d.get('pos', d.get('part', 'n.'))
+                meaning = d.get('meaning', d.get('translation', ''))
+                def_parts.append(f"{pos} {meaning}")
+            elif isinstance(d, str):
+                def_parts.append(d)
+        def_text = "\n".join(def_parts)
+    elif isinstance(definitions, str):
+        def_text = definitions
+    else:
+        def_text = "（释义待补充）"
+    
+    
+    prompt = f"""为单词 "{word}" ({phonetic}) 生成一张精简的学习卡片内容。
+
+已知释义：
+{def_text}
+
+请生成以下内容（JSON格式）：
+1. definition: 最核心的一个释义（词性 + 中文翻译，20字以内）
+2. memory_tip: 一个简短的记忆技巧（可以是词根拆解、谐音、联想等，30字以内）
+3. example: 一个简单实用的英文例句（15词以内，带中文翻译）
+
+返回格式：
+{{
+  "definition": "v. 适应；改编",
+  "memory_tip": "ad(去) + apt(合适) → 让自己去变得合适",
+  "example": "We must adapt to the new environment.|我们必须适应新环境。"
+}}
+
+注意：
+- 内容要简洁，适合打印成卡片
+- 例句用 | 分隔英文和中文
+- 只返回JSON，不要其他内容"""
+
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "你是一位考研英语单词记忆专家，擅长提炼核心信息。"},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.5
+        )
+        
+        import json
+        content = response.choices[0].message.content.strip()
+        
+        # Clean markdown code blocks if present
+        if content.startswith("```"):
+            lines = content.splitlines()
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].startswith("```"):
+                lines = lines[:-1]
+            content = "\n".join(lines)
+            
+        card_data = json.loads(content)
+        return {"success": True, "card_data": card_data}
+        
+    except Exception as e:
+        import traceback
+        print(f"Error generating card: {e}")
+        traceback.print_exc()
+        
+        # Safe fallback for definition text
+        fallback_def = "暂无释义"
+        if isinstance(definitions, list) and definitions:
+            d = definitions[0]
+            if isinstance(d, dict):
+                fallback_def = f"{d.get('pos', 'n.')} {d.get('meaning', '')}"
+            elif isinstance(d, str):
+                fallback_def = d
+        elif isinstance(definitions, str):
+            fallback_def = definitions
+            
+        # Fallback
+        return {
+            "success": False,
+            "card_data": {
+                "definition": fallback_def,
+                "memory_tip": "暂无记忆技巧",
+                "example": f"This is an example of {word}.|这是一个例句。"
+            }
+        }
+
 if __name__ == "__main__":
     pass

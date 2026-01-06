@@ -1237,21 +1237,61 @@ def delete_memo(memo_id: str):
 def delete_vocabulary(vocab_id: str):
     """Delete a vocabulary word file."""
     # Try ID first
-    if VOCABULARY_DIR.exists():
-        for file in VOCABULARY_DIR.glob("*.md"):
+    if VOCAB_DIR.exists():
+        for file in VOCAB_DIR.glob("**/*.md"):  # Recursive search
             content = file.read_text(encoding="utf-8")
             meta = parse_frontmatter(content)
             if meta.get("id") == vocab_id:
                 file.unlink()
                 return {"success": True, "message": "Deleted by ID"}
     
-    # Try filename
-    file_path = VOCABULARY_DIR / f"{vocab_id}.md"
-    if file_path.exists():
-        file_path.unlink()
+    # Try filename (also recursive)
+    for file in VOCAB_DIR.glob(f"**/{vocab_id}.md"):
+        file.unlink()
         return {"success": True, "message": "Deleted by filename"}
         
     raise HTTPException(status_code=404, detail="Vocabulary word not found")
+
+
+# ====== Vocabulary Card Generation Endpoint ======
+
+@app.post("/api/vocabulary/{vocab_id}/generate-card")
+def generate_vocabulary_card(vocab_id: str):
+    """Generate AI-powered card content for export."""
+    from llm_analyzer import generate_vocab_card
+    
+    # Find the vocabulary item
+    vocab_item = None
+    if VOCAB_DIR.exists():
+        for file in VOCAB_DIR.glob("**/*.md"):  # Recursive search
+            content = file.read_text(encoding="utf-8")
+            meta = parse_frontmatter(content)
+            # Strip quotes from ID for comparison (YAML may keep them)
+            file_id = str(meta.get("id", "")).strip('"').strip("'")
+            if file_id == vocab_id:
+                vocab_item = meta
+                break
+    
+    if not vocab_item:
+        # Try by filename (also recursive)
+        for file in VOCAB_DIR.glob(f"**/{vocab_id}.md"):
+            content = file.read_text(encoding="utf-8")
+            vocab_item = parse_frontmatter(content)
+            break
+    
+    if not vocab_item:
+        raise HTTPException(status_code=404, detail="Vocabulary word not found")
+    
+    # Generate card content (strip quotes from values)
+    word = str(vocab_item.get("word", "")).strip('"').strip("'")
+    phonetic = str(vocab_item.get("phonetic", "")).strip('"').strip("'")
+    definitions = vocab_item.get("definitions", [])
+    
+    if not word:
+        raise HTTPException(status_code=400, detail="Word not found in vocabulary data")
+    
+    result = generate_vocab_card(word, phonetic, definitions)
+    return result
 
 
 # ====== System Configuration API ======

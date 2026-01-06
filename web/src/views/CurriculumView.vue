@@ -62,7 +62,12 @@ async function createChapter() {
       throw new Error(data.detail || '创建失败')
     }
     
+    // Get the created ID from response
+    const successData = await res.json()
+    const newId = successData.id
+    
     showCreateModal.value = false
+    
     // Reset form
     newChapter.value = {
       id: '',
@@ -71,7 +76,16 @@ async function createChapter() {
       type: 'topic',
       description: ''
     }
+    
     await loadCurriculum()
+    
+    // Auto-open the new chapter in Edit Mode
+    const createdChapter = chapters.value.find(c => c.id === newId)
+    if (createdChapter) {
+        await loadChapter(createdChapter)
+        isEditing.value = true
+    }
+    
   } catch (e) {
     alert(e.message)
   } finally {

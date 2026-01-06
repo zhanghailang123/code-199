@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { marked } from 'marked'
+import html2canvas from 'html2canvas-pro'
 import { API_BASE } from '../config/api.js'
 import MarkdownEditor from './MarkdownEditor.vue'
 import NoteBubble from './NoteBubble.vue'
@@ -14,8 +15,46 @@ const emit = defineEmits(['close'])
 const isEditing = ref(false)
 const saving = ref(false)
 const regenerating = ref(false)
+const exporting = ref(false)
 const localItem = ref(null)
 const rawContent = ref('')
+const cardRef = ref(null)
+const exportCardRef = ref(null)
+
+// Computed property to extract first example sentence from content
+const firstExample = computed(() => {
+  if (!rawContent.value) return ''
+  
+  // Extract the markdown body (after frontmatter)
+  const parts = rawContent.value.split(/---\r?\n/)
+  if (parts.length < 3) return ''
+  const body = parts.slice(2).join('---\n')
+  
+  // Try multiple patterns to find example sentences
+  // Pattern 1: Blockquotes with > (most common in your format)
+  const blockquoteMatch = body.match(/>\s*>\s*例[：:]?\s*(.+?)(?:\r?\n|$)/m) ||
+                          body.match(/>\s*>\s*(.+?)(?:\r?\n|$)/m) ||
+                          body.match(/>\s+(.+?)(?:\r?\n|$)/m)
+  
+  if (blockquoteMatch) {
+    return blockquoteMatch[1].trim().replace(/\*\*/g, '')
+  }
+  
+  // Pattern 2: Lines starting with 例: or Example:
+  const exampleMatch = body.match(/(?:例|Example)[：:]\s*(.+?)(?:\r?\n|$)/im)
+  if (exampleMatch) {
+    return exampleMatch[1].trim().replace(/\*\*/g, '')
+  }
+  
+  return ''
+})
+
+// Computed property to get primary definition
+const primaryDefinition = computed(() => {
+  if (!localItem.value?.definitions?.length) return null
+  return localItem.value.definitions[0]
+})
+
 
 // Initialize (Load full content)
 watch(() => props.item, async (newItem) => {
@@ -26,9 +65,6 @@ watch(() => props.item, async (newItem) => {
       if (res.ok) {
         localItem.value = await res.json()
         // Reconstruct raw content for editor
-        // We need to rebuild frontmatter + content if the API separates them
-        // API returns { ...frontmatter, content: "markdown body" }
-        // We need to reconstruct the file content for the editor
         rawContent.value = buildRawFile(localItem.value)
       }
     } catch (e) {
@@ -36,6 +72,73 @@ watch(() => props.item, async (newItem) => {
     }
   }
 }, { immediate: true })
+
+// Reactive ref for AI-generated card content
+const aiCardContent = ref(null)
+
+const showPreview = ref(false)
+const previewImageUrl = ref('')
+
+async function exportImage() {
+  if (!exportCardRef.value || exporting.value || !localItem.value) return
+  
+  exporting.value = true
+  try {
+    // Step 1: Generate AI card content
+    const generateRes = await fetch(`${API_BASE}/api/vocabulary/${localItem.value.id}/generate-card`, {
+      method: 'POST'
+    })
+    
+    if (!generateRes.ok) {
+      throw new Error('Failed to generate card content')
+    }
+    
+    const generateData = await generateRes.json()
+    aiCardContent.value = generateData.card_data
+    
+    // Step 2: Show the export card
+    exportCardRef.value.style.display = 'flex'
+    
+    // Wait for render
+    await nextTick()
+    
+    // Step 3: Capture
+    const canvas = await html2canvas(exportCardRef.value, {
+      backgroundColor: null, // Use card's own background
+      scale: 3, // High quality
+      useCORS: true,
+      width: 400,
+      height: 600
+    })
+    
+    // Hide the export card again
+    exportCardRef.value.style.display = 'none'
+    
+    // Show Preview
+    previewImageUrl.value = canvas.toDataURL('image/png')
+    showPreview.value = true
+    
+  } catch (e) {
+    console.error('Export failed:', e)
+    alert('导出图片失败: ' + e.message)
+    // Ensure card is hidden on error
+    if (exportCardRef.value) exportCardRef.value.style.display = 'none'
+  } finally {
+    exporting.value = false
+    // aiCardContent.value = null // Keep it for a moment potentially? Or clear.
+    // Better to keep it until download or close. But logic works either way as canvas is already generated.
+  }
+}
+
+function downloadImage() {
+    if (!previewImageUrl.value) return
+    const link = document.createElement('a')
+    link.download = `vocab-${localItem.value?.word || 'card'}.png`
+    link.href = previewImageUrl.value
+    link.click()
+    showPreview.value = false
+}
+
 
 function buildRawFile(data) {
     const fm = {
@@ -397,7 +500,7 @@ onUnmounted(() => {
   <div class="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-hidden" 
        @click.self="$emit('close')"
        @wheel.stop>
-    <div class="bg-[#09090b] w-full max-w-6xl h-[90vh] max-h-[90vh] rounded-2xl grid grid-rows-[auto_1fr] border border-zinc-800 shadow-2xl overflow-hidden animate-fade-in relative">
+    <div ref="cardRef" class="bg-[#09090b] w-full max-w-6xl h-[90vh] max-h-[90vh] rounded-2xl grid grid-rows-[auto_1fr] border border-zinc-800 shadow-2xl overflow-hidden animate-fade-in relative">
       
       <!-- Header (Row 1) -->
       <div class="p-6 border-b border-zinc-800 bg-zinc-900/50 flex justify-between items-start">
@@ -445,6 +548,15 @@ onUnmounted(() => {
          </div>
          <div class="flex gap-2">
             <button 
+               @click="exportImage" 
+               :disabled="exporting"
+               class="btn text-zinc-400 hover:text-white flex items-center gap-1.5 hover:bg-white/5"
+               title="导出为图片"
+            >
+               <span class="text-xl">📸</span>
+               <span class="text-sm hidden sm:inline">{{ exporting ? '导出中...' : '保存卡片' }}</span>
+            </button>
+            <button 
                @click="regenerate" 
                :disabled="regenerating"
                class="btn text-zinc-400 hover:text-white flex items-center gap-1.5"
@@ -453,7 +565,7 @@ onUnmounted(() => {
             >
                <span v-if="regenerating" class="animate-spin">🔄</span>
                <span v-else>🔄</span>
-               <span class="text-sm">{{ regenerating ? '生成中...' : '重新生成' }}</span>
+               <span class="text-sm hidden sm:inline">{{ regenerating ? '生成中...' : '重新生成' }}</span>
             </button>
             <button @click="isEditing = !isEditing" class="btn btn-ghost text-zinc-400 hover:text-white">
                 {{ isEditing ? 'Cancel' : 'Edit' }}
@@ -529,9 +641,80 @@ onUnmounted(() => {
                   </div>
                </div>
             </Teleport>
-         </div>
-      </div>
+          </div>
+       </div>
 
+       <!-- Image Preview Modal -->
+       <Teleport to="body">
+          <div 
+             v-if="showPreview"
+             class="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md"
+             @click="showPreview = false"
+          >
+             <div class="flex flex-col items-center gap-6" @click.stop>
+                <img :src="previewImageUrl" class="rounded-[24px] shadow-2xl max-h-[70vh] w-auto border border-white/10" alt="Card Preview" />
+                <div class="flex gap-4">
+                   <button 
+                      @click="showPreview = false"
+                      class="px-6 py-2.5 rounded-full bg-zinc-800 text-zinc-300 hover:bg-zinc-700 font-medium transition-colors"
+                   >
+                      取消
+                   </button>
+                   <button 
+                      @click="downloadImage"
+                      class="px-6 py-2.5 rounded-full bg-blue-600 text-white hover:bg-blue-500 font-medium shadow-lg shadow-blue-500/20 transition-all flex items-center gap-2"
+                   >
+                      <span>📥</span> 下载图片
+                   </button>
+                </div>
+             </div>
+          </div>
+       </Teleport>
+     </div>
+   </div>
+  
+  <!-- Hidden Export Card Template (Beautiful Design) -->
+  <div 
+    ref="exportCardRef" 
+    class="export-card"
+    style="display: none; position: fixed; top: -9999px; left: -9999px;"
+  >
+    <div class="export-card-inner">
+      <!-- Decorative top area -->
+      <div class="export-card-header">
+        <span class="export-card-icon">📚</span>
+      </div>
+      
+      <!-- Main word -->
+      <h1 class="export-card-word">{{ localItem?.word || '' }}</h1>
+      
+      <!-- Phonetic -->
+      <p class="export-card-phonetic">{{ localItem?.phonetic || '' }}</p>
+      
+      <!-- Divider -->
+      <div class="export-card-divider"></div>
+      
+      <!-- Memory Tip (AI Generated) -->
+      <div v-if="aiCardContent?.memory_tip" class="export-card-tip">
+        <span class="tip-icon">💡</span>
+        <span class="tip-text">{{ aiCardContent.memory_tip }}</span>
+      </div>
+      
+      <!-- Definition (AI Generated) -->
+      <div v-if="aiCardContent?.definition" class="export-card-definition">
+        <span class="def-meaning">{{ aiCardContent.definition }}</span>
+      </div>
+      
+      <!-- Example (AI Generated, bilingual) -->
+      <p v-if="aiCardContent?.example" class="export-card-example">
+        {{ aiCardContent.example.split('|')[0] }}<br>
+        <span class="example-translation">{{ aiCardContent.example.split('|')[1] || '' }}</span>
+      </p>
+      
+      <!-- Branding -->
+      <div class="export-card-footer">
+        <span>MEM Study</span>
+      </div>
     </div>
   </div>
 </template>
@@ -727,5 +910,132 @@ body.is-modal-open {
     position: fixed;
     inset: 0;
     z-index: 1999;
+}
+
+/* Export Card Styles - Beautiful 2:3 Design */
+.export-card {
+    width: 400px;
+    height: 600px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #FF6B6B 0%, #FFA07A 50%, #FFD93D 100%);
+    border-radius: 24px;
+    padding: 32px;
+    box-sizing: border-box;
+    font-family: 'Georgia', 'Times New Roman', serif;
+}
+
+.export-card-inner {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.export-card-header {
+    margin-bottom: 16px;
+}
+
+.export-card-icon {
+    font-size: 48px;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.2));
+}
+
+.export-card-word {
+    font-size: 48px;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin: 0 0 8px 0;
+    text-shadow: 0 2px 4px rgba(255,255,255,0.3);
+    letter-spacing: -1px;
+}
+
+.export-card-phonetic {
+    font-size: 20px;
+    color: #4a4a6a;
+    font-family: 'Courier New', monospace;
+    margin: 0 0 24px 0;
+}
+
+.export-card-divider {
+    width: 60%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(26,26,46,0.3), transparent);
+    margin: 0 0 24px 0;
+}
+
+.export-card-tip {
+    background: rgba(255,255,255,0.4);
+    border-radius: 12px;
+    padding: 12px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 90%;
+}
+
+.tip-icon {
+    font-size: 20px;
+}
+
+.tip-text {
+    font-size: 14px;
+    color: #2d2d44;
+    font-family: 'Microsoft YaHei', sans-serif;
+}
+
+.export-card-definition {
+    margin-bottom: 20px;
+}
+
+.def-pos {
+    display: inline-block;
+    background: rgba(26,26,46,0.15);
+    color: #1a1a2e;
+    font-size: 14px;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 4px;
+    margin-right: 8px;
+    font-family: sans-serif;
+}
+
+.def-meaning {
+    font-size: 22px;
+    color: #1a1a2e;
+    font-family: 'Microsoft YaHei', 'PingFang SC', sans-serif;
+}
+
+.export-card-example {
+    font-size: 16px;
+    font-style: italic;
+    color: #3d3d5c;
+    max-width: 90%;
+    line-height: 1.5;
+    margin: 0 0 32px 0;
+}
+
+.example-translation {
+    display: block;
+    margin-top: 8px;
+    font-size: 14px;
+    font-style: normal;
+    color: #5a5a7a;
+    margin-top: 4px;
+    font-family: 'Microsoft YaHei', sans-serif;
+}
+
+.export-card-footer {
+    position: absolute;
+    bottom: 24px;
+    font-size: 14px;
+    color: rgba(26,26,46,0.5);
+    font-family: sans-serif;
+    letter-spacing: 2px;
 }
 </style>
