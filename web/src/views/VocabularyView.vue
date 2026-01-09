@@ -90,15 +90,33 @@ function scrollToLetter(letter) {
     }
 }
 
-// Create new word
-// Create new word
-async function createWord() {
-  const word = prompt('请输入单词拼写:')
+// Custom Modal Logic
+const showAddModal = ref(false)
+const newWordInput = ref('')
+const isAutoGenerate = ref(true)
+const wordInputRef = ref(null)
+
+// Focus input when modal opens
+import { watch, nextTick } from 'vue'
+watch(showAddModal, (newVal) => {
+    if (newVal) {
+        nextTick(() => {
+            wordInputRef.value?.focus()
+        })
+    }
+})
+
+// Create new word (Modal Confirmation)
+async function confirmCreateWord() {
+  const word = newWordInput.value.trim()
   if (!word) return
   
-  const autoGenerate = confirm(`是否使用 AI 生成 "${word}" 的完整考研笔记？\n(包含记忆点、真题考法、易混词等，生成需约 10-20 秒)`)
+  // Close modal immediately so user can continue
+  showAddModal.value = false
+  newWordInput.value = ''
   
   const id = 'vocab-' + word.toLowerCase().replace(/[^a-z0-9]/g, '-')
+  const autoGen = isAutoGenerate.value // Capture value before reset
   
   isCreating.value = true
   
@@ -110,13 +128,13 @@ async function createWord() {
           id, 
           word, 
           category: 'english',
-          auto_generate: autoGenerate
+          auto_generate: autoGen
       })
     })
     
     if (res.ok) {
         await loadVocabulary(true) // Silent refresh
-        // Find the new item and open it
+        // Find the new item and open it (optional, maybe distracting if user moved on? kept for now)
         const newItem = items.value.find(i => i.id === id)
         if (newItem) selectedItem.value = newItem
     } else {
@@ -127,6 +145,13 @@ async function createWord() {
   } finally {
     isCreating.value = false
   }
+}
+
+// Fallback for FAB click (just triggers modal, logic is now in confirmCreateWord)
+function createWord() {
+    showAddModal.value = true
+    newWordInput.value = ''
+    isAutoGenerate.value = true
 }
 
 // Copy functionality
@@ -195,15 +220,7 @@ onMounted(() => {
              >
              <span class="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none">🔍</span>
           </div>
-          <button 
-            @click="createWord" 
-            :disabled="isCreating"
-            class="btn btn-primary whitespace-nowrap px-4 py-2 rounded-xl flex items-center gap-2 shadow-lg shadow-blue-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <div v-if="isCreating" class="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"></div>
-            <span v-else>+</span> 
-            {{ isCreating ? '生成中...' : '新单词' }}
-          </button>
+          <!-- Button moved to FAB -->
         </div>
       </div>
 
@@ -340,6 +357,84 @@ onMounted(() => {
        :item="selectedItem" 
        @close="selectedItem = null; loadVocabulary(true)" 
     />
+
+    <!-- Floating Action Button (Add Word) -->
+    <button 
+      @click="showAddModal = true; isAutoGenerate = true; newWordInput = ''"
+      :disabled="isCreating"
+      class="fixed top-1/2 right-6 -translate-y-1/2 z-40 w-14 h-14 bg-blue-600 hover:bg-blue-500 rounded-full shadow-lg shadow-blue-600/30 flex items-center justify-center transition-all hover:scale-105 active:scale-95 disabled:opacity-70 disabled:cursor-not-allowed group select-none"
+      title="添加新单词"
+    >
+        <div v-if="isCreating" class="animate-spin w-6 h-6 border-2 border-white/30 border-t-white rounded-full"></div>
+        <span v-else class="text-4xl text-white font-light leading-none -mt-1 group-hover:rotate-90 transition-transform duration-300 pointer-events-none">+</span>
+    </button>
+
+    <!-- Custom Add Word Modal -->
+    <Transition
+      enter-active-class="transition duration-200 ease-out"
+      enter-from-class="opacity-0 scale-95"
+      enter-to-class="opacity-100 scale-100"
+      leave-active-class="transition duration-150 ease-in"
+      leave-from-class="opacity-100 scale-100"
+      leave-to-class="opacity-0 scale-95"
+    >
+      <div v-if="showAddModal" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <!-- Backdrop -->
+        <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="showAddModal = false"></div>
+        
+        <!-- Modal Card -->
+        <div class="relative bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm shadow-2xl p-6 overflow-hidden">
+            <!-- Header -->
+            <div class="mb-6 text-center">
+                <h3 class="text-xl font-bold text-white mb-1">添加新单词</h3>
+                <p class="text-zinc-500 text-sm">Add a new word to your collection</p>
+            </div>
+
+            <!-- Input -->
+            <div class="mb-6">
+                <input 
+                  v-model="newWordInput"
+                  ref="wordInputRef"
+                  type="text" 
+                  placeholder="Type word here..." 
+                  class="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-4 py-3 text-lg text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all text-center"
+                  @keyup.enter="confirmCreateWord"
+                  autofocus
+                >
+            </div>
+
+            <!-- AI Toggle -->
+            <div class="mb-8 flex items-center justify-center gap-3 cursor-pointer select-none" @click="isAutoGenerate = !isAutoGenerate">
+                <div class="w-10 h-6 rounded-full relative transition-colors duration-200" 
+                     :class="isAutoGenerate ? 'bg-blue-600' : 'bg-zinc-700'">
+                    <div class="absolute top-1 left-1 w-4 h-4 rounded-full bg-white transition-transform duration-200"
+                         :class="isAutoGenerate ? 'translate-x-4' : 'translate-x-0'"></div>
+                </div>
+                <span class="text-sm font-medium" :class="isAutoGenerate ? 'text-blue-100' : 'text-zinc-400'">
+                    {{ isAutoGenerate ? 'AI 自动生成笔记' : '仅创建单词' }}
+                </span>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-3">
+                <button 
+                  @click="showAddModal = false"
+                  class="flex-1 px-4 py-2.5 rounded-xl border border-zinc-700 text-zinc-400 hover:bg-zinc-800 hover:text-white transition-colors text-sm font-medium"
+                >
+                  取消
+                </button>
+                <button 
+                  @click="confirmCreateWord"
+                  :disabled="!newWordInput.trim() || isCreating"
+                  class="flex-1 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg shadow-blue-600/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-bold flex items-center justify-center gap-2"
+                >
+                  <div v-if="isCreating" class="animate-spin w-4 h-4 border-2 border-white/30 border-t-white rounded-full"></div>
+                  {{ isCreating ? '生成中...' : '确认添加' }}
+                </button>
+            </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 

@@ -596,20 +596,26 @@ def generate_vocab_card(word: str, phonetic: str, definitions) -> dict:
 {def_text}
 
 请生成以下内容（JSON格式）：
-1. definition: 最核心的一个释义（词性 + 中文翻译，20字以内）
+1. definition: 核心释义（如果有多个词性，用分号分隔，每个词性最多一个义项，总计不超过40字。例如："n. 跨度；范围；v. 跨越"）
 2. memory_tip: 一个简短的记忆技巧（可以是词根拆解、谐音、联想等，30字以内）
 3. example: 一个简单实用的英文例句（15词以内，带中文翻译）
+4. common_phrases: 两个最常用的短语搭配（英文即可，用 | 分隔，总长度控制在25字符以内，越短越好）
 
 返回格式：
 {{
-  "definition": "v. 适应；改编",
+  "definition": "n. 跨度；范围；v. 跨越；持续",
   "memory_tip": "ad(去) + apt(合适) → 让自己去变得合适",
-  "example": "We must adapt to the new environment.|我们必须适应新环境。"
+  "example": "The bridge spans the river.|这座桥横跨河流。",
+  "common_phrases": "span of time|short span"
 }}
 
 注意：
 - 内容要简洁，适合打印成卡片
+- 记忆技巧可以是词根拆解、谐音、联想等，30字以内
+- 例句适当高级，适合写作背诵，不要太过简单
+- 如果有多个词性，一定要都包含。
 - 例句用 | 分隔英文和中文
+- common_phrases只返回英文，用|分隔
 - 只返回JSON，不要其他内容"""
 
     try:
@@ -662,6 +668,95 @@ def generate_vocab_card(word: str, phonetic: str, definitions) -> dict:
                 "example": f"This is an example of {word}.|这是一个例句。"
             }
         }
+
+
+def generate_curriculum_content(title: str, subject: str, chapter_id: str) -> str:
+    """Generate structured curriculum content using LLM."""
+    
+    # Map subject to Chinese name for better context
+    subject_map = {
+        "math": "管理类联考数学 (Mathematics)",
+        "logic": "管理类联考逻辑 (Logic)",
+        "english": "考研英语 (English)",
+        "writing": "管理类联考写作 (Writing)"
+    }
+    subject_cn = subject_map.get(subject, subject)
+
+    prompt = f"""
+你是一位资深的考研/MEM 备考专家，擅长总结学习要点、提炼解题技巧和分析命题趋势。
+
+请为以下章节生成一份 **极具深度和实战价值** 的学习笔记（Markdown 格式）：
+
+*   **主题：** {title}
+*   **学科：** {subject_cn}
+*   **章节编号：** {chapter_id}
+
+请严格按照以下 7 个部分进行编写，内容要干货满满，拒绝废话：
+
+### 第一部分：核心定义（基础地基）
+*   列出本章最关键的概念、公式、定理。
+*   数学公式请务必使用 $LaTeX$ 格式（例如 $x^2 + y^2 = r^2$）。
+*   如果有容易混淆的概念，请用 *斜体* 或 **加粗** 强调。
+
+### 第二部分：核心考点（考试套路）
+*   提炼 2-3 个最常考的题型或考点。
+*   每个考点包含：
+    *   **原理：** 一句话解释核心逻辑。
+    *   **公式/结论：** 相关的秒杀公式或重要结论。
+    *   **应用场景：** 什么样的题目会用到这个考点。
+
+### 第三部分：真题逻辑演练（文字解析）
+*   提供 2 个典型例题（最好改编自真题）。
+*   **格式要求：**
+    **【例题 X】** 题目内容...
+    *   **文字解析：**
+        1. 第一步思路...
+        2. 第二步计算...
+        3. 结论...
+    *   (解析要像老师讲课一样，展示逻辑链条，不仅仅是列算式)
+
+### 第四部分：避坑指南（考试心理）
+*   列出考生在这一章最容易犯的 2-3 个错误。
+*   提供对应的"防坑口诀"或记忆技巧。
+
+### 第五部分：考情分析（情报局）
+*   **难度星级：** (1-5星，例如 ⭐⭐⭐)
+*   **考频指数：** (1-5星，例如 ⭐⭐⭐⭐⭐)
+*   **命题趋势：** 简述近几年的考察风向（变难、变活、结合实事等）。
+
+### 第六部分：思维导图（知识网）
+*   请使用 `mermaid` 代码块生成本章的知识结构图。
+*   方向使用 `mindmap` 或 `graph LR` 均可，力求结构清晰。
+    ```mermaid
+    mindmap
+      root(({title}))
+        核心概念
+          ...
+        考点一
+          ...
+    ```
+
+### 第七部分：针对 MEM/MBA 的复习建议
+*   结合在职考生的特点，给出 2-3 条高效复习建议。
+
+**输出要求：**
+1.  **只返回 Markdown 内容**，不要包含 YAML frontmatter (由后端处理)。
+2.  内容长度控制在 800-1500 字，确保深度。
+3.  语气要专业、犀利、干练，像一位经验丰富的辅导老师。
+"""
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": "你是一位考研命题研究专家，擅长编写高质量的教辅材料。"},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"Error generating curriculum: {e}")
+        return f"Error generation failed: {str(e)}"
 
 if __name__ == "__main__":
     pass
