@@ -736,8 +736,11 @@ def get_curriculum():
                     content = file.read_text(encoding="utf-8")
                     meta = parse_frontmatter(content)
                     
+                    # Strip quotes from ID if present (YAML may preserve them)
+                    raw_id = str(meta.get("id", file.stem)).strip().strip("'\"")
+                    
                     chapters.append({
-                        "id": meta.get("id", file.stem),
+                        "id": raw_id,
                         "title": meta.get("title", file.stem),
                         "subject": meta.get("subject", subject_dir.name),
                         "order": int(meta.get("order", 99)),
@@ -772,9 +775,13 @@ def get_chapter(chapter_id: str):
                     content = file.read_text(encoding="utf-8")
                     meta = parse_frontmatter(content)
                     
-                    if meta.get("id") == chapter_id or file.stem == chapter_id:
+                    # Strip quotes from ID for comparison
+                    stored_id = str(meta.get("id", file.stem)).strip().strip("'\"")
+                    clean_chapter_id = chapter_id.strip().strip("'\"")
+                    
+                    if stored_id == clean_chapter_id or file.stem == clean_chapter_id:
                         return {
-                            "id": meta.get("id", file.stem),
+                            "id": stored_id,
                             "raw": content,
                             "meta": meta
                         }
@@ -871,6 +878,63 @@ def create_curriculum_chapter(chapter: CurriculumChapterCreate):
     
     return {"message": "Chapter created successfully", "id": chapter.id, "path": str(file_path)}
 
+
+# ====== Curriculum Generation Endpoint ======
+
+class GenerateChapterRequest(BaseModel):
+    title: str
+    subject: str
+
+@app.post("/api/curriculum/{chapter_id}/generate")
+def generate_chapter_content(chapter_id: str, request: GenerateChapterRequest):
+    """Generate structured content for a curriculum chapter."""
+    from llm_analyzer import generate_curriculum_content
+    
+    # Validation
+    if not (CURRICULUM_DIR / request.subject).exists():
+        raise HTTPException(status_code=404, detail=f"Subject not found: {request.subject}")
+        
+    file_path = CURRICULUM_DIR / request.subject / f"{chapter_id}.md"
+    
+    # Generate content
+    generated_md = generate_curriculum_content(request.title, request.subject, chapter_id)
+    
+    if "Error" in generated_md and len(generated_md) < 200:
+         raise HTTPException(status_code=500, detail=generated_md)
+    
+    # Construct final file with frontmatter
+    # Preserve existing frontmatter if file exists, or create new
+    existing_meta = {}
+    if file_path.exists():
+        content = file_path.read_text(encoding='utf-8')
+        existing_meta = parse_frontmatter(content)
+    
+    # Update/Merge Metadata
+    meta = {
+        "id": chapter_id,
+        "status": existing_meta.get("status", "not_started"),
+        "subject": request.subject,
+        "title": request.title,
+        "type": existing_meta.get("type", "topic")
+    }
+    
+    yaml_content = yaml.dump(meta, allow_unicode=True, default_flow_style=False)
+    
+    final_content = f"""---
+{yaml_content.strip()}
+---
+
+{generated_md}
+"""
+    
+    # Save to file
+    file_path.write_text(final_content, encoding="utf-8")
+    
+    return {
+        "success": True, 
+        "message": "Content generated successfully", 
+        "path": str(file_path)
+    }
 
 # ====== PDF Upload Endpoints ======
 

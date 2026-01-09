@@ -12,6 +12,7 @@ import highlight from '@bytemd/plugin-highlight'
 import math from '@bytemd/plugin-math'
 import gemoji from '@bytemd/plugin-gemoji'
 import breaks from '@bytemd/plugin-breaks'
+import mermaid from '@bytemd/plugin-mermaid'
 import 'bytemd/dist/index.css'
 import 'highlight.js/styles/github-dark.css' 
 import 'katex/dist/katex.css'
@@ -22,6 +23,7 @@ const plugins = [
   highlight(),
   math(),
   gemoji(),
+  mermaid(),
 ]
 
 const router = useRouter()
@@ -38,6 +40,7 @@ const saving = ref(false)
 // Create Modal State
 const showCreateModal = ref(false)
 const creating = ref(false)
+const autoGenerateOnCreate = ref(true) // New: auto-generate after creation
 const newChapter = ref({
   id: '',
   title: '',
@@ -46,15 +49,44 @@ const newChapter = ref({
   description: ''
 })
 
+// Auto-generate chapter ID from title
+function generateChapterId(title, subject) {
+  if (!title) return ''
+  // Get next number based on existing chapters
+  const subjectChapters = chapters.value.filter(c => c.subject === subject)
+  const nextNum = String(subjectChapters.length + 1).padStart(3, '0')
+  return nextNum
+}
+
+// Watch title to auto-fill ID
+import { watch } from 'vue'
+watch(() => newChapter.value.title, (newTitle) => {
+  // Only auto-fill if ID is empty or was auto-generated
+  if (!newChapter.value.id || /^\d{3}$/.test(newChapter.value.id)) {
+    newChapter.value.id = generateChapterId(newTitle, newChapter.value.subject)
+  }
+})
+watch(() => newChapter.value.subject, (newSubject) => {
+  if (!newChapter.value.id || /^\d{3}$/.test(newChapter.value.id)) {
+    newChapter.value.id = generateChapterId(newChapter.value.title, newSubject)
+  }
+})
+
 async function createChapter() {
   if (!newChapter.value.id || !newChapter.value.title) return
   
+  const shouldAutoGenerate = autoGenerateOnCreate.value
+  const chapterData = { ...newChapter.value }
+  
+  // Close modal immediately
+  showCreateModal.value = false
   creating.value = true
+  
   try {
     const res = await fetch(`${API_BASE}/api/curriculum`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newChapter.value)
+      body: JSON.stringify(chapterData)
     })
     
     if (!res.ok) {
@@ -62,28 +94,65 @@ async function createChapter() {
       throw new Error(data.detail || '创建失败')
     }
     
-    // Get the created ID from response
     const successData = await res.json()
-    const newId = successData.id
-    
-    showCreateModal.value = false
+    // Sanitize ID: remove any quotes that might have been returned or entered
+    const newId = String(successData.id).replace(/['"]/g, '').trim()
     
     // Reset form
-    newChapter.value = {
-      id: '',
-      title: '',
-      subject: 'math',
-      type: 'topic',
-      description: ''
-    }
+    newChapter.value = { id: '', title: '', subject: 'math', type: 'topic', description: '' }
     
     await loadCurriculum()
     
-    // Auto-open the new chapter in Edit Mode
-    const createdChapter = chapters.value.find(c => c.id === newId)
+    // Auto-open the new chapter
+    console.log('[Curriculum] Looking for new chapter ID:', newId)
+    
+    // Robust lookup: ensure string comparison and handle potential delays
+    let createdChapter = chapters.value.find(c => String(c.id).trim() === newId)
+    
+    // Fallback: if not found in list (e.g. index delay), construct temp object to allow generation
+    if (!createdChapter) {
+        console.warn('[Curriculum] Chapter not found in list after refresh, using temp object')
+        createdChapter = {
+            id: newId,
+            ...chapterData
+        }
+    }
+    
     if (createdChapter) {
-        await loadChapter(createdChapter)
+        selectedChapter.value = createdChapter
+        chapterContent.value = '' // Reset to empty string to avoid Editor crash
         isEditing.value = true
+        
+        // Auto-generate if checkbox was checked
+        if (shouldAutoGenerate) {
+            console.log('[Curriculum] Auto-generate enabled, starting generation...')
+            isGenerating.value = true
+            try {
+                const genRes = await fetch(`${API_BASE}/api/curriculum/${newId}/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: chapterData.title, subject: chapterData.subject })
+                })
+                console.log('[Curriculum] Generation response status:', genRes.status)
+                if (genRes.ok) {
+                    console.log('[Curriculum] Generation successful, loading chapter...')
+                    // Reload specific chapter to get content
+                    await loadChapter(createdChapter)
+                    isEditing.value = false // Show preview
+                } else {
+                    const err = await genRes.json()
+                    alert('AI 生成失败: ' + (err.detail || '未知错误'))
+                }
+            } catch (e) {
+                alert('AI 生成失败: ' + e.message)
+            } finally {
+                isGenerating.value = false
+            }
+        } else {
+            // Only load if it's a real object from list, otherwise might fail if file not ready?
+            // Actually API created it so it should be loadable by ID
+            await loadChapter(createdChapter)
+        }
     }
     
   } catch (e) {
@@ -130,7 +199,7 @@ async function loadCurriculum() {
 
 async function loadChapter(chapter) {
   selectedChapter.value = chapter
-  chapterContent.value = null // Reset
+  chapterContent.value = '' // Reset to empty string instead of null to prevent Editor crash
   isEditing.value = false // Default to view mode
   
   try {
@@ -140,9 +209,39 @@ async function loadChapter(chapter) {
     const data = await res.json()
     
     // Store FULL raw content including frontmatter for editing
-    chapterContent.value = data.raw
+    chapterContent.value = data.raw || ''
   } catch (e) {
     error.value = e.message
+  }
+}
+
+const isGenerating = ref(false)
+
+async function generateWithAI() {
+  if (!selectedChapter.value) return
+
+  isGenerating.value = true
+  try {
+    const res = await fetch(`${API_BASE}/api/curriculum/${selectedChapter.value.id}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: selectedChapter.value.title,
+        subject: selectedChapter.value.subject
+      })
+    })
+    
+    if (res.ok) {
+      await loadChapter(selectedChapter.value)
+      isEditing.value = false
+    } else {
+      const err = await res.json()
+      throw new Error(err.detail || '生成失败')
+    }
+  } catch (e) {
+    alert('生成失败: ' + e.message)
+  } finally {
+    isGenerating.value = false
   }
 }
 
@@ -385,6 +484,15 @@ onMounted(() => {
             </div>
             
             <div class="flex items-center gap-3">
+               <button 
+                  v-if="isEditing"
+                  @click="generateWithAI"
+                  class="btn bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 border border-purple-500/30 text-sm flex items-center gap-2 mr-2"
+                  :disabled="isGenerating">
+                  <span v-if="isGenerating" class="animate-spin h-3 w-3 border-2 border-current border-t-transparent rounded-full"></span>
+                  {{ isGenerating ? 'AI 生成中...' : '🤖 AI 自动生成' }}
+               </button>
+
                <button @click="isEditing = !isEditing" 
                       class="btn btn-ghost text-sm flex items-center gap-2"
                       :class="isEditing ? 'text-blue-400 bg-blue-500/10' : 'text-zinc-400'">
@@ -508,27 +616,29 @@ onMounted(() => {
               </select>
             </div>
 
-            <!-- Chapter ID -->
+            <!-- Title (First, so ID can auto-generate) -->
             <div>
-              <label class="block text-sm font-medium text-zinc-400 mb-1">章节 ID (文件名)</label>
-              <input 
-                v-model="newChapter.id" 
-                type="text" 
-                placeholder="例如：math-geometry-01" 
-                class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none font-mono text-sm"
-              >
-              <p class="text-xs text-zinc-500 mt-1">建议使用英文和连字符，如 logic-formal-02</p>
-            </div>
-
-            <!-- Title -->
-            <div>
-              <label class="block text-sm font-medium text-zinc-400 mb-1">章节标题</label>
+              <label class="block text-sm font-medium text-zinc-400 mb-1">章节标题 <span class="text-red-400">*</span></label>
               <input 
                 v-model="newChapter.title" 
                 type="text" 
-                placeholder="例如：平面几何基础" 
+                placeholder="例如：平面几何基础、韦达定理" 
                 class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none"
+                autocomplete="off"
               >
+            </div>
+
+            <!-- Chapter ID (Auto-generated, but editable) -->
+            <div>
+              <label class="block text-sm font-medium text-zinc-400 mb-1">章节 ID <span class="text-zinc-500 text-xs">(自动生成)</span></label>
+              <input 
+                v-model="newChapter.id" 
+                type="text" 
+                placeholder="自动生成，如 001" 
+                class="w-full bg-zinc-800/50 border border-zinc-700 rounded-lg p-2.5 text-zinc-400 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none font-mono text-sm"
+                autocomplete="off"
+              >
+              <p class="text-xs text-zinc-500 mt-1">自动根据科目编号，可手动修改</p>
             </div>
             
             <!-- Type -->
@@ -549,6 +659,15 @@ onMounted(() => {
                 placeholder="本章主要讲解..." 
                 class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none"
               ></textarea>
+            </div>
+
+            <!-- Auto Generate Toggle -->
+            <div class="flex items-center gap-3 pt-2">
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" v-model="autoGenerateOnCreate" class="sr-only peer">
+                <div class="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+              </label>
+              <span class="text-sm text-zinc-300">🤖 创建后自动使用 AI 生成内容</span>
             </div>
 
           </div>
