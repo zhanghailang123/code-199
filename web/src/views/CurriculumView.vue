@@ -52,10 +52,8 @@ const newChapter = ref({
 // Auto-generate chapter ID from title
 function generateChapterId(title, subject) {
   if (!title) return ''
-  // Get next number based on existing chapters
-  const subjectChapters = chapters.value.filter(c => c.subject === subject)
-  const nextNum = String(subjectChapters.length + 1).padStart(3, '0')
-  return nextNum
+  // Use timestamp for unique ID to avoid conflicts
+  return Date.now().toString()
 }
 
 // Watch title to auto-fill ID
@@ -275,6 +273,56 @@ function closeDetail() {
   isEditing.value = false
 }
 
+async function deleteChapter() {
+  if (!selectedChapter.value) return
+  
+  const chapterTitle = selectedChapter.value.title || selectedChapter.value.id
+  if (!confirm(`确定要删除章节 "${chapterTitle}" 吗？\n\n此操作不可恢复！`)) {
+    return
+  }
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/curriculum/${selectedChapter.value.id}`, {
+      method: 'DELETE'
+    })
+    
+    if (!res.ok) {
+      const data = await res.json()
+      throw new Error(data.detail || '删除失败')
+    }
+    
+    // Close detail and refresh list
+    closeDetail()
+    await loadCurriculum()
+    
+  } catch (e) {
+    alert('删除失败: ' + e.message)
+  }
+}
+
+// Delete chapter by ID (for list view)
+async function deleteChapterById(chapterId, chapterTitle) {
+  if (!confirm(`确定要删除章节 "${chapterTitle || chapterId}" 吗？\n\n此操作不可恢复！`)) {
+    return
+  }
+  
+  try {
+    const res = await fetch(`${API_BASE}/api/curriculum/${chapterId}`, {
+      method: 'DELETE'
+    })
+    
+    if (!res.ok) {
+      const data = await res.json()
+      throw new Error(data.detail || '删除失败')
+    }
+    
+    await loadCurriculum()
+    
+  } catch (e) {
+    alert('删除失败: ' + e.message)
+  }
+}
+
 // Handle Custom Link Clicks (Delegate)
 function handleEditorClick(e) {
   // Unused for now
@@ -452,6 +500,12 @@ onMounted(() => {
                     class="btn btn-secondary text-sm py-1.5 hover:bg-white/10 hover:text-white">
               开始学习
             </button>
+            
+            <button @click.stop="deleteChapterById(chapter.id, chapter.title)" 
+                    class="btn text-sm py-1.5 bg-red-600/10 text-red-400 hover:bg-red-600/20 border border-red-500/20 opacity-60 hover:opacity-100 transition-opacity"
+                    title="删除章节">
+              🗑️
+            </button>
           </div>
         </div>
       </div>
@@ -506,7 +560,11 @@ onMounted(() => {
                   {{ saving ? '保存中...' : '💾 保存' }}
                </button>
                
-               <div class="w-px h-6 bg-white/10 mx-2"></div>
+               <button v-if="isEditing" 
+                       @click="deleteChapter" 
+                       class="btn text-sm py-1.5 bg-red-600/20 text-red-400 hover:bg-red-600/30 border border-red-500/30">
+                  🗑️ 删除
+               </button>
                
                <button @click="closeDetail" class="text-zinc-400 hover:text-white transition-colors p-2 hover:bg-white/10 rounded-lg">
                   ✕
@@ -628,18 +686,7 @@ onMounted(() => {
               >
             </div>
 
-            <!-- Chapter ID (Auto-generated, but editable) -->
-            <div>
-              <label class="block text-sm font-medium text-zinc-400 mb-1">章节 ID <span class="text-zinc-500 text-xs">(自动生成)</span></label>
-              <input 
-                v-model="newChapter.id" 
-                type="text" 
-                placeholder="自动生成，如 001" 
-                class="w-full bg-zinc-800/50 border border-zinc-700 rounded-lg p-2.5 text-zinc-400 focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none font-mono text-sm"
-                autocomplete="off"
-              >
-              <p class="text-xs text-zinc-500 mt-1">自动根据科目编号，可手动修改</p>
-            </div>
+            <!-- Chapter ID is auto-generated, no input needed -->
             
             <!-- Type -->
              <div>
@@ -677,7 +724,7 @@ onMounted(() => {
             <button @click="showCreateModal = false" class="px-4 py-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors">取消</button>
             <button 
               @click="createChapter" 
-              :disabled="creating || !newChapter.id || !newChapter.title"
+              :disabled="creating || !newChapter.title"
               class="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             >
               <span v-if="creating" class="animate-spin h-4 w-4 border-2 border-white/20 border-t-white rounded-full"></span>

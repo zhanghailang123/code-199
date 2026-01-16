@@ -1,5 +1,5 @@
 ---
-id: math-ch02
+id:0019
 status: not_started
 subject: math
 title: '"第二章：代数与方程"'

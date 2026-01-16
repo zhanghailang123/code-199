@@ -751,8 +751,8 @@ def get_curriculum():
                         "path": str(file)
                     })
     
-    # Sort by subject then order
-    chapters.sort(key=lambda x: (x["subject"], x["order"]))
+    # Sort by subject, then order, then ID (as tiebreaker)
+    chapters.sort(key=lambda x: (x["subject"], x["order"], x["id"]))
     
     return {
         "chapters": chapters,
@@ -792,6 +792,9 @@ def get_chapter(chapter_id: str):
 class UpdateStatusRequest(BaseModel):
     status: str  # not_started, in_progress, completed
 
+class UpdateContentRequest(BaseModel):
+    content: str  # Full markdown content to save
+
 @app.put("/api/curriculum/{chapter_id}/status")
 def update_chapter_status(chapter_id: str, request: UpdateStatusRequest):
     """Update chapter learning status."""
@@ -828,6 +831,28 @@ def update_chapter_content(chapter_id: str, request: UpdateContentRequest):
                         # Overwrite the file with new content
                         file.write_text(request.content, encoding="utf-8")
                         return {"message": "Content updated"}
+    
+    raise HTTPException(status_code=404, detail=f"Chapter {chapter_id} not found")
+
+
+@app.delete("/api/curriculum/{chapter_id}")
+def delete_chapter(chapter_id: str):
+    """Delete a curriculum chapter by ID."""
+    # Strip quotes from ID
+    clean_id = chapter_id.strip().strip("'\"")
+    
+    if CURRICULUM_DIR.exists():
+        for subject_dir in CURRICULUM_DIR.iterdir():
+            if subject_dir.is_dir():
+                for file in subject_dir.glob("*.md"):
+                    content = file.read_text(encoding="utf-8")
+                    meta = parse_frontmatter(content)
+                    
+                    stored_id = str(meta.get("id", file.stem)).strip().strip("'\"")
+                    
+                    if stored_id == clean_id or file.stem == clean_id:
+                        file.unlink()  # Delete the file
+                        return {"message": f"Chapter {clean_id} deleted successfully"}
     
     raise HTTPException(status_code=404, detail=f"Chapter {chapter_id} not found")
 
