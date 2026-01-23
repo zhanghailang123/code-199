@@ -60,6 +60,10 @@ const props = defineProps({
   readonly: {
     type: Boolean,
     default: false
+  },
+  uploadImages: {
+    type: Function,
+    default: null
   }
 })
 
@@ -158,6 +162,7 @@ watch(() => props.value, () => {
       :plugins="plugins" 
       :locale="locale"
       :mode="mode"
+      :uploadImages="uploadImages"
       @change="handleChange" 
     />
   </div>

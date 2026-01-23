@@ -2,30 +2,11 @@
 id: "vocab-bolster"
 word: "bolster"
 phonetic: "/ˈboʊlstər/"
-tags: ["考研", "阅读", "写作", "高频"]
+tags: ["考研","阅读","写作","高频"]
 status: "learning"
-confusables:
-  - word: "lobster"
-    meaning: "龙虾"
-  - word: "blister"
-    meaning: "水泡"
-  - word: "holster"
-    meaning: "手枪皮套"
-synonyms:
-  - word: "reinforce"
-    meaning: "加强；增援"
-  - word: "strengthen"
-    meaning: "巩固；变强"
-  - word: "underpin"
-    meaning: "支撑；巩固（基础）"
-definitions:
-  - part: "v."
-    translation: "支持；加强；改善"
-    text: "to support or improve something or make it stronger"
-  - part: "n."
-    translation: "长枕；靠枕"
-    text: "a long thick pillow that is placed across the head of a bed for other pillows to rest on"
+definitions: [{"part":"v.","translation":"支持；加强；改善","text":"to support or improve something or make it stronger"},{"part":"n.","translation":"长枕；靠枕","text":"a long thick pillow that is placed across the head of a bed for other pillows to rest on"}]
 related_questions: []
+notes: []
 ---
 
 考研党你好！今天咱们要死磕的这个词，在考研阅读里是妥妥的"救命稻草"，在写作里更是替换 "support" 的"高分神器"。千万别把它和海鲜搞混了，它是 **bolster**！
@@ -101,6 +82,85 @@ related_questions: []
 > 这句话瞬间像一个柔软厚实的**枕头（noun meaning）**，垫在了你疲惫的心灵背后，
 > **Bolstered（verb meaning）** your confidence（增强了你的信心），让你又能再战三百回合！
 
-### 结尾鼓励
+---
 
-好了，今天的 **bolster** 你学会了吗？记住，考研路上，每一个扎实的单词都是在 **bolster** 你的上岸几率！别怕难，有我陪你死磕到底！加油！
+
+---
+
+
+
+> The newly released data bolstered the skepticism about the effectiveness of the current educational reform.
+
+### 一、 句子结构抽丝剥茧 (Structure Analysis)
+
+这句话是标准的 **SVO（主谓宾）** 结构，后面带了一个长长的介词短语做定语。
+
+*   **Subject (主语):** **The newly released data**
+    *   （新发布的数据）
+*   **Verb (谓语):** **bolstered**
+    *   （加强了/支撑了 —— **核心动词！**）
+*   **Object (宾语):** **the skepticism**
+    *   （怀疑态度 —— **核心名词！**）
+*   **Attributive (定语):** **[about the effectiveness of the current educational reform]**
+    *   这是一个介词短语修饰 `skepticism`。
+    *   *意思：* 关于当前教育改革**有效性**的（怀疑）。
+    *   *注：你输入的单词 effctiveness 少了一个 e，正确拼写是 **effectiveness**。*
+
+---
+
+### 二、 核心词汇深度解析 (Vocabulary)
+
+这两个词在 MEM 英语二中属于**“决定分数”**级别的词汇：
+
+#### 1. Bolster (v.) —— 【写作替换神词】
+*   **本义：** 长枕头/垫枕（名词）；支撑/加固（动词）。
+*   **考研含义：** **支持、加强、鼓舞**。
+*   **逻辑方向：** $\uparrow$ (向上/增强)。
+*   **同义替换：**
+    *   *Support* (太普通)
+    *   *Strengthen* (加强)
+    *   *Reinforce* (强化)
+    *   **Bolster** (高级感满分)
+*   **写作例句：**
+    *   *The rising numbers **bolster** the argument that...* (不断上升的数字**有力地支撑了**这一观点......)
+
+#### 2. Skepticism (n.) —— 【阅读态度题必考】
+*   **读音：** /'skeptɪsɪzəm/
+*   **含义：** **怀疑态度、怀疑论**。
+*   **形容词：** **Skeptical** (怀疑的)。
+*   **考研逻辑：**
+    *   如果阅读理解问作者对某政策的态度，选项里有 *skeptical* 或 *skepticism*，这通常代表**“质疑/不相信/反对”**的负面态度。
+*   **搭配：** *Skepticism **about**...* (对...的怀疑)
+
+---
+
+### 三、 翻译逻辑 (Translation)
+
+*   **直译：** 新发布的数据**加强了**关于当前教育改革有效性的**怀疑**。
+*   **人话（高分翻译）：**
+    > **新发布的数据加深了人们对当前教育改革成效的质疑。**
+
+    *技巧点拨：把 "bolstered the skepticism"（支撑了怀疑）处理成 "**加深了质疑**"，更符合中文习惯。*
+
+---
+
+### 四、 考研实战：这句话意味着什么？
+
+在做阅读理解（Part A）时，读到这句话，你的脑子里要立刻反应出以下 **逻辑链**：
+
+1.  **背景：** 正在进行一场教育改革。
+2.  **现状：** 大家本来就怀疑这改革没啥用（Skepticism 已经存在）。
+3.  **新情况：** 数据出来了（Data released）。
+4.  **结果：** 完蛋了，数据不好看！因为数据**“加强了”**这种怀疑。（如果数据好看，应该是消除怀疑）。
+5.  **预判下文：** 接下来文章大概率会列举这些**“不好看的数据”**，或者批评这项改革的失败之处。
+
+### 五、 写作模仿 (Writing Imitation)
+
+这句话的结构 **"Data bolstered the [Attitude] about [Topic]"** 非常适合用在图表作文的结论段。
+
+**场景：** 假设图表显示看书的人越来越少。
+> The declining numbers **bolstered the anxiety about** the reading habits of the younger generation.
+> *（不断下降的数字**加剧了**人们对年轻一代阅读习惯的**焦虑**。）*
+
+**总结：**
+记住 **Bolster (加强/支持)** 和 **Skepticism (质疑)**，这对组合在考研里就是“实锤打脸”的专用表达！

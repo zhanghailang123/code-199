@@ -2,33 +2,17 @@
 id: "vocab-vital"
 word: "vital"
 phonetic: "/ˈvaɪtl/"
-tags: ["考研", "阅读", "高频", "写作"]
+tags: ["考研","阅读","高频","写作"]
 status: "learning"
-confusables:
-  - word: "viral"
-    meaning: "病毒的；病毒式的"
-  - word: "vial"
-    meaning: "小瓶"
-synonyms:
-  - word: "essential"
-    meaning: "本质的，绝对必要的"
-  - word: "crucial"
-    meaning: "至关重要的，决定性的"
-  - word: "indispensable"
-    meaning: "不可或缺的"
-definitions:
-  - part: "adj."
-    translation: "极其重要的，必不可少的"
-    text: "absolutely necessary or important; essential"
-  - part: "adj."
-    translation: "充满活力的，生机勃勃的"
-    text: "full of energy; lively"
-  - part: "n."
-    translation: "重要器官；核心部分 (常用复数 vitals)"
-    text: "the body's important internal organs"
+definitions: [{"part":"adj.","translation":"极其重要的，必不可少的","text":"absolutely necessary or important; essential"},{"part":"adj.","translation":"充满活力的，生机勃勃的","text":"full of energy; lively"},{"part":"n.","translation":"重要器官；核心部分 (常用复数 vitals)","text":"the body's important internal organs"}]
 related_questions: []
+notes: []
 ---
+
 考研党你好！今天咱们要死磕的这个词，是阅读理解和大小作文里的“超级明星”——**vital**。别看它长得简单，考研就喜欢在这种“熟词”上设置“僻义”陷阱，或者考察你是否能用它写出高分句。今天，咱们就把它彻底搞定！
+
+> 副词 vitally
+> 形容词？
 
 ### 一、 核心记忆锚点（Root & Logic）
 

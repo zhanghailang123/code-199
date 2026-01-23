@@ -585,10 +585,10 @@ def generate_vocab_card(word: str, phonetic: str, definitions) -> dict:
         }
 
 
-def generate_curriculum_content(title: str, subject: str, chapter_id: str) -> str:
+def generate_curriculum_content(title: str, subject: str, chapter_id: str, chapter_type: str = "topic") -> str:
     """Generate structured curriculum content using LLM."""
     
-    from prompts import CURRICULUM_CONTENT_PROMPT
+    from prompts import CURRICULUM_CONTENT_PROMPT, WRITING_CURRICULUM_PROMPT
 
     # Map subject to Chinese name for better context
     subject_map = {
@@ -599,11 +599,20 @@ def generate_curriculum_content(title: str, subject: str, chapter_id: str) -> st
     }
     subject_cn = subject_map.get(subject, subject)
 
-    prompt = CURRICULUM_CONTENT_PROMPT.format(
-        title=title,
-        subject_cn=subject_cn,
-        chapter_id=chapter_id
-    )
+    # Select appropriate prompt based on chapter type
+    if chapter_type == "writing":
+        prompt = WRITING_CURRICULUM_PROMPT.format(
+            title=title,
+            chapter_id=chapter_id
+        )
+        system_msg = "你是一位考研英语写作名师，擅长编写高分作文攻略。"
+    else:
+        prompt = CURRICULUM_CONTENT_PROMPT.format(
+            title=title,
+            subject_cn=subject_cn,
+            chapter_id=chapter_id
+        )
+        system_msg = "你是一位考研命题研究专家，擅长编写高质量的教辅材料。"
     
     client = get_client()
     model = get_model()
@@ -612,7 +621,7 @@ def generate_curriculum_content(title: str, subject: str, chapter_id: str) -> st
         response = client.chat.completions.create(
             model=model,
             messages=[
-                {"role": "system", "content": "你是一位考研命题研究专家，擅长编写高质量的教辅材料。"},
+                {"role": "system", "content": system_msg},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7

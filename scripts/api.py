@@ -42,7 +42,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ====== Data Models ======
+from fastapi.staticfiles import StaticFiles
+from fastapi import UploadFile, File, Request
+import uuid
+import shutil
+
+# Asset Directory
+ASSETS_DIR = CONTENT_DIR / "assets"
+ASSETS_DIR.mkdir(exist_ok=True)
+
+# Mount static files
+app.mount("/assets", StaticFiles(directory=str(ASSETS_DIR)), name="assets")
+
+@app.post("/api/upload")
+async def upload_file(request: Request, file: UploadFile = File(...)):
+    """Upload image for markdown editor."""
+    file_ext = Path(file.filename).suffix
+    unique_name = f"{uuid.uuid4().hex}{file_ext}"
+    file_path = ASSETS_DIR / unique_name
+    
+    with open(file_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+        
+    # Return URL accessible via the StaticFiles mount
+    return {
+        "url": f"{request.base_url}assets/{unique_name}"
+    }
 
 class QuestionCreate(BaseModel):
     id: str
@@ -743,6 +768,7 @@ def get_curriculum():
                         "id": raw_id,
                         "title": meta.get("title", file.stem),
                         "subject": meta.get("subject", subject_dir.name),
+                        "type": meta.get("type", "topic"),
                         "order": int(meta.get("order", 99)),
                         "status": meta.get("status", "not_started"),
                         "estimated_hours": int(meta.get("estimated_hours", 0)),
@@ -921,18 +947,27 @@ def generate_chapter_content(chapter_id: str, request: GenerateChapterRequest):
         
     file_path = CURRICULUM_DIR / request.subject / f"{chapter_id}.md"
     
-    # Generate content
-    generated_md = generate_curriculum_content(request.title, request.subject, chapter_id)
-    
-    if "Error" in generated_md and len(generated_md) < 200:
-         raise HTTPException(status_code=500, detail=generated_md)
-    
-    # Construct final file with frontmatter
     # Preserve existing frontmatter if file exists, or create new
     existing_meta = {}
     if file_path.exists():
         content = file_path.read_text(encoding='utf-8')
         existing_meta = parse_frontmatter(content)
+        
+    chapter_type = existing_meta.get("type", "topic")
+
+    # Generate content
+    generated_md = generate_curriculum_content(
+        request.title, 
+        request.subject, 
+        chapter_id,
+        chapter_type=chapter_type
+    )
+    
+    if "Error" in generated_md and len(generated_md) < 200:
+         raise HTTPException(status_code=500, detail=generated_md)
+    
+    # Update/Merge Metadata
+    meta = existing_meta.copy()
     
     # Update/Merge Metadata
     meta = {

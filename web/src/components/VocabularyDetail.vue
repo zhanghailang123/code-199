@@ -2,7 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { marked } from 'marked'
 import html2canvas from 'html2canvas-pro'
-import { API_BASE } from '../config/api.js'
+import { API_BASE, handleUploadImages } from '../config/api.js'
 import MarkdownEditor from './MarkdownEditor.vue'
 import NoteBubble from './NoteBubble.vue'
 
@@ -631,6 +631,7 @@ function getSyllables(word) {
                v-if="isEditing" 
                v-model:value="rawContent" 
                mode="split"
+               :uploadImages="handleUploadImages"
                class="absolute inset-0 w-full h-full"
             />
 

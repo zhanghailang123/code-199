@@ -2,7 +2,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { marked } from 'marked'
-import { API_BASE } from '../config/api.js'
+import { API_BASE, handleUploadImages } from '../config/api.js'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
 
 const route = useRoute()
@@ -225,6 +225,7 @@ const sectionLabel = computed(() => {
             v-if="isEditing" 
             v-model:value="rawContent" 
             mode="split"
+            :uploadImages="handleUploadImages"
             class="absolute inset-0" 
           />
           

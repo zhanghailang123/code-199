@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 // import { marked } from 'marked' // Removed
-import { API_BASE } from '../config/api.js'
+import { API_BASE, handleUploadImages } from '../config/api.js'
 import MarkdownEditor from '../components/MarkdownEditor.vue'
 
 // ByteMD Imports for Viewer
@@ -34,6 +34,7 @@ const bySubject = ref({})
 const selectedChapter = ref(null)
 const chapterContent = ref(null) // This will now hold raw markdown
 const activeSubject = ref('all')
+const activeType = ref('all')  // Add type filter
 const isEditing = ref(false)
 const saving = ref(false)
 
@@ -161,8 +162,19 @@ async function createChapter() {
 }
 
 const filteredChapters = computed(() => {
-  if (activeSubject.value === 'all') return chapters.value
-  return chapters.value.filter(c => c.subject === activeSubject.value)
+  let filtered = chapters.value
+  
+  // Filter by subject
+  if (activeSubject.value !== 'all') {
+    filtered = filtered.filter(c => c.subject === activeSubject.value)
+  }
+  
+  // Filter by type
+  if (activeType.value !== 'all') {
+    filtered = filtered.filter(c => c.type === activeType.value)
+  }
+  
+  return filtered
 })
 
 const statusLabels = {
@@ -441,6 +453,15 @@ onMounted(() => {
       <button @click="activeSubject = 'logic'" class="px-4 py-2 rounded-lg font-medium transition-all text-sm" :class="activeSubject === 'logic' ? 'bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20' : 'text-zinc-500 hover:text-amber-400 hover:bg-amber-500/5'">逻辑</button>
       <button @click="activeSubject = 'english'" class="px-4 py-2 rounded-lg font-medium transition-all text-sm" :class="activeSubject === 'english' ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20' : 'text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/5'">英语</button>
     </div>
+    
+    <!-- Type Filter Tabs -->
+    <div class="flex gap-2 mb-6 pb-4">
+      <span class="text-xs text-zinc-500 self-center mr-2">类型筛选:</span>
+      <button @click="activeType = 'all'" class="px-3 py-1.5 rounded-lg font-medium transition-all text-xs" :class="activeType === 'all' ? 'bg-zinc-800 text-white shadow-sm ring-1 ring-white/10' : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'">全部</button>
+      <button @click="activeType = 'topic'" class="px-3 py-1.5 rounded-lg font-medium transition-all text-xs" :class="activeType === 'topic' ? 'bg-blue-500/10 text-blue-400 ring-1 ring-blue-500/20' : 'text-zinc-500 hover:text-blue-400 hover:bg-blue-500/5'">知识点讲解</button>
+      <button @click="activeType = 'practice'" class="px-3 py-1.5 rounded-lg font-medium transition-all text-xs" :class="activeType === 'practice' ? 'bg-purple-500/10 text-purple-400 ring-1 ring-purple-500/20' : 'text-zinc-500 hover:text-purple-400 hover:bg-purple-500/5'">习题训练</button>
+      <button @click="activeType = 'writing'" class="px-3 py-1.5 rounded-lg font-medium transition-all text-xs" :class="activeType === 'writing' ? 'bg-pink-500/10 text-pink-400 ring-1 ring-pink-500/20' : 'text-zinc-500 hover:text-pink-400 hover:bg-pink-500/5'">英文作文</button>
+    </div>
 
     <!-- Chapter List -->
     <div class="grid gap-4">
@@ -580,6 +601,7 @@ onMounted(() => {
                 v-model:value="chapterContent"
                 mode="split" 
                 :readonly="false"
+                :uploadImages="handleUploadImages"
                 class="h-full"
              />
              
@@ -694,6 +716,7 @@ onMounted(() => {
               <select v-model="newChapter.type" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-white focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none">
                 <option value="topic">知识点讲解</option>
                 <option value="practice">习题训练</option>
+                <option value="writing">英文作文</option>
               </select>
             </div>
 
