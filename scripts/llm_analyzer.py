@@ -3,8 +3,10 @@ LLM Analyzer Module
 Uses OpenAI-compatible API to analyze exam questions.
 """
 import os
+import json
 import yaml
 from pathlib import Path
+from typing import List, Optional
 from openai import OpenAI
 
 # Import learning-focused prompts from centralized file
@@ -585,7 +587,7 @@ def generate_vocab_card(word: str, phonetic: str, definitions) -> dict:
         }
 
 
-def generate_curriculum_content(title: str, subject: str, chapter_id: str, chapter_type: str = "topic") -> str:
+def generate_curriculum_content(title: str, subject: str, chapter_id: str, chapter_type: str = "topic", images_base64: List[str] = None) -> str:
     """Generate structured curriculum content using LLM."""
     
     from prompts import CURRICULUM_CONTENT_PROMPT, WRITING_CURRICULUM_PROMPT
@@ -618,11 +620,38 @@ def generate_curriculum_content(title: str, subject: str, chapter_id: str, chapt
     model = get_model()
     
     try:
+        # Construct messages based on whether images are provided
+        if images_base64 and len(images_base64) > 0:
+            # Multi-modal message with multiple images
+            content_list = [
+                {
+                    "type": "text",
+                    "text": prompt
+                }
+            ]
+            
+            # Add each image in the list
+            for img_b64 in images_base64:
+                content_list.append({
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/png;base64,{img_b64}"
+                    }
+                })
+                
+            user_message = {
+                "role": "user",
+                "content": content_list
+            }
+        else:
+            # Text-only message
+            user_message = {"role": "user", "content": prompt}
+        
         response = client.chat.completions.create(
             model=model,
             messages=[
                 {"role": "system", "content": system_msg},
-                {"role": "user", "content": prompt}
+                user_message
             ],
             temperature=0.7
         )

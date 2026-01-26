@@ -17,6 +17,20 @@ import 'bytemd/dist/index.css'
 import 'highlight.js/styles/github-dark.css' 
 import 'katex/dist/katex.css'
 
+// Custom plugin to rewrite relative /assets/ URLs for images
+const imageRewritePlugin = () => ({
+  viewerEffect({ el }) {
+    if (!el) return
+    const imgs = el.querySelectorAll('img');
+    imgs.forEach(img => {
+      const src = img.getAttribute('src');
+      if (src && src.startsWith('/assets/')) {
+        img.setAttribute('src', `${API_BASE}${src}`);
+      }
+    });
+  }
+});
+
 const plugins = [
   gfm(),
   breaks(),
@@ -24,6 +38,7 @@ const plugins = [
   math(),
   gemoji(),
   mermaid(),
+  imageRewritePlugin(),
 ]
 
 const router = useRouter()
@@ -48,6 +63,56 @@ const newChapter = ref({
   subject: 'math',
   type: 'topic',
   description: ''
+})
+const newChapterImages = ref([])
+const newChapterImagePreviews = ref([])
+
+function handleNewChapterImagePaste(event) {
+  const items = event.clipboardData?.items
+  if (!items) return
+  
+  for (const item of items) {
+    if (item.type.startsWith('image/')) {
+      const file = item.getAsFile()
+      if (file) {
+        newChapterImages.value.push(file)
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          newChapterImagePreviews.value.push(e.target.result)
+        }
+        reader.readAsDataURL(file)
+        event.preventDefault()
+      }
+      break
+    }
+  }
+}
+
+function removeNewChapterImage(idx) {
+  newChapterImages.value.splice(idx, 1)
+  newChapterImagePreviews.value.splice(idx, 1)
+}
+
+function clearNewChapterImages() {
+  newChapterImages.value = []
+  newChapterImagePreviews.value = []
+}
+
+// Global paste listener when create modal is open
+function globalPasteHandler(event) {
+  // Only capture paste if modal is open and auto-generate is enabled
+  if (!showCreateModal.value || !autoGenerateOnCreate.value) return
+  
+  handleNewChapterImagePaste(event)
+}
+
+// Watch modal open/close to register/unregister global paste listener
+watch(showCreateModal, (isOpen) => {
+  if (isOpen) {
+    document.addEventListener('paste', globalPasteHandler)
+  } else {
+    document.removeEventListener('paste', globalPasteHandler)
+  }
 })
 
 // Auto-generate chapter ID from title
@@ -99,6 +164,8 @@ async function createChapter() {
     
     // Reset form
     newChapter.value = { id: '', title: '', subject: 'math', type: 'topic', description: '' }
+    const savedImages = [...newChapterImages.value]
+    clearNewChapterImages()
     
     await loadCurriculum()
     
@@ -127,10 +194,31 @@ async function createChapter() {
             console.log('[Curriculum] Auto-generate enabled, starting generation...')
             isGenerating.value = true
             try {
+                // Convert images to base64 if provided
+                let imagesBase64 = []
+                if (savedImages.length > 0) {
+                  imagesBase64 = await Promise.all(
+                    savedImages.map(img => {
+                      return new Promise((resolve) => {
+                        const reader = new FileReader()
+                        reader.onload = (e) => {
+                          const base64 = e.target.result.split(',')[1]
+                          resolve(base64)
+                        }
+                        reader.readAsDataURL(img)
+                      })
+                    })
+                  )
+                }
+                
                 const genRes = await fetch(`${API_BASE}/api/curriculum/${newId}/generate`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ title: chapterData.title, subject: chapterData.subject })
+                    body: JSON.stringify({ 
+                        title: chapterData.title, 
+                        subject: chapterData.subject, 
+                        images_base64: imagesBase64.length > 0 ? imagesBase64 : null 
+                    })
                 })
                 console.log('[Curriculum] Generation response status:', genRes.status)
                 if (genRes.ok) {
@@ -226,24 +314,70 @@ async function loadChapter(chapter) {
 }
 
 const isGenerating = ref(false)
+const uploadedImages = ref([])
+const imagePreviews = ref([])
+
+function handleImageUpload(event) {
+  const files = Array.from(event.target.files)
+  if (!files.length) return
+  
+  files.forEach(file => {
+    uploadedImages.value.push(file)
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      imagePreviews.value.push(e.target.result)
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
+function removeUploadedImage(idx) {
+  uploadedImages.value.splice(idx, 1)
+  imagePreviews.value.splice(idx, 1)
+}
+
+function clearImages() {
+  uploadedImages.value = []
+  imagePreviews.value = []
+}
 
 async function generateWithAI() {
   if (!selectedChapter.value) return
 
   isGenerating.value = true
   try {
+    let imagesBase64 = []
+    
+    // Convert images to base64 if provided
+    if (uploadedImages.value.length > 0) {
+      imagesBase64 = await Promise.all(
+        uploadedImages.value.map(img => {
+          return new Promise((resolve) => {
+            const reader = new FileReader()
+            reader.onload = (e) => {
+              const base64 = e.target.result.split(',')[1]
+              resolve(base64)
+            }
+            reader.readAsDataURL(img)
+          })
+        })
+      )
+    }
+    
     const res = await fetch(`${API_BASE}/api/curriculum/${selectedChapter.value.id}/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         title: selectedChapter.value.title,
-        subject: selectedChapter.value.subject
+        subject: selectedChapter.value.subject,
+        images_base64: imagesBase64.length > 0 ? imagesBase64 : null
       })
     })
     
     if (res.ok) {
       await loadChapter(selectedChapter.value)
       isEditing.value = false
+      clearImages() // Clear images after successful generation
     } else {
       const err = await res.json()
       throw new Error(err.detail || '生成失败')
@@ -342,7 +476,9 @@ function handleEditorClick(e) {
 
 // Pre-process markdown to inject raw HTML spans for question links
 function renderWithLinks(mdContent) {
-  // Regex replace [[id]] with HTML span
+  if (!mdContent) return ''
+  
+  // Regex replace [[id]] with HTML span for question linking
   // ByteMD Viewer renders raw HTML by default.
   return mdContent.replace(/\[\[([^\]]+)\]\]/g, (match, id) => {
     return `<span class="question-link" data-question-id="${id}">${id}</span>`
@@ -559,6 +695,34 @@ onMounted(() => {
             </div>
             
             <div class="flex items-center gap-3">
+                <!-- Multiple Image Upload for AI context -->
+                <div v-if="isEditing" class="flex items-center gap-2">
+                   <input 
+                      ref="imageInput"
+                      type="file" 
+                      accept="image/*" 
+                      multiple
+                      @change="handleImageUpload" 
+                      class="hidden"
+                   />
+                   
+                   <!-- Show previews if any -->
+                   <div v-if="imagePreviews.length > 0" class="flex items-center gap-1.5 bg-zinc-800 rounded-lg p-1 border border-zinc-700">
+                      <div v-for="(preview, idx) in imagePreviews" :key="idx" class="relative group">
+                        <img :src="preview" class="h-8 w-8 object-cover rounded" />
+                        <button @click="removeUploadedImage(idx)" class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-3 h-3 flex items-center justify-center text-[8px] opacity-0 group-hover:opacity-100">✕</button>
+                      </div>
+                      <button @click="$refs.imageInput.click()" class="w-8 h-8 flex items-center justify-center text-zinc-500 hover:text-white hover:bg-white/5 rounded text-lg">+</button>
+                   </div>
+
+                   <button 
+                      v-else
+                      @click="$refs.imageInput.click()"
+                      class="btn bg-zinc-800 text-zinc-400 hover:bg-zinc-700 border border-zinc-700 text-sm px-3"
+                      title="上传参考图片（支持多张）"
+                   >📷</button>
+                </div>
+
                <button 
                   v-if="isEditing"
                   @click="generateWithAI"
@@ -647,7 +811,7 @@ onMounted(() => {
                
                <!-- Fallback -->
                <div v-if="Object.keys(parsedChapter.sections).length === 0">
-                    <Viewer :value="parsedChapter.fullContent" :plugins="plugins" />
+                    <Viewer :value="renderWithLinks(parsedChapter.fullContent)" :plugins="plugins" />
                </div>
              </div>
           </div>
@@ -738,6 +902,54 @@ onMounted(() => {
                 <div class="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
               </label>
               <span class="text-sm text-zinc-300">🤖 创建后自动使用 AI 生成内容</span>
+            </div>
+
+            <!-- Image Paste/Upload Area (only shown when auto-generate is enabled) -->
+            <div v-if="autoGenerateOnCreate" class="pt-2">
+              <label class="block text-sm font-medium text-zinc-400 mb-2">📷 题目截图（支持多次 Ctrl+V 粘贴多张图片）</label>
+              <div 
+                @paste="handleNewChapterImagePaste"
+                @click="$refs.newChapterImageInput?.click()"
+                tabindex="0"
+                class="w-full border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors focus:outline-none focus:border-purple-500"
+                :class="newChapterImagePreviews.length > 0 ? 'border-purple-500 bg-purple-500/10' : 'border-zinc-700 hover:border-zinc-500 bg-zinc-800/50'"
+              >
+                <input 
+                  ref="newChapterImageInput"
+                  type="file" 
+                  accept="image/*" 
+                  multiple
+                  @change="(e) => { 
+                    const files = Array.from(e.target.files);
+                    files.forEach(file => {
+                      newChapterImages.push(file);
+                      const reader = new FileReader();
+                      reader.onload = (ev) => { newChapterImagePreviews.push(ev.target.result) };
+                      reader.readAsDataURL(file);
+                    });
+                  }" 
+                  class="hidden"
+                />
+                
+                <div v-if="newChapterImagePreviews.length === 0" class="text-zinc-500 text-sm">
+                  <span class="text-2xl block mb-2">📋</span>
+                  点击上传或直接 Ctrl+V 粘贴
+                </div>
+                
+                <div v-else class="flex flex-wrap gap-2 justify-center">
+                  <div v-for="(preview, idx) in newChapterImagePreviews" :key="idx" class="relative group">
+                    <img :src="preview" class="h-16 w-16 object-cover rounded border border-white/10" />
+                    <button 
+                      @click.stop="removeNewChapterImage(idx)" 
+                      class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] opacity-0 group-hover:opacity-100 transition-opacity"
+                    >✕</button>
+                  </div>
+                  <div class="h-16 w-16 flex items-center justify-center border-2 border-dashed border-zinc-600 rounded text-zinc-500 hover:border-zinc-400">
+                    <span class="text-xl">+</span>
+                  </div>
+                </div>
+              </div>
+              <p v-if="newChapterImagePreviews.length > 0" class="text-[10px] text-zinc-500 mt-1 text-center">已添加 {{ newChapterImagePreviews.length }} 张截图，AI 将按顺序分析</p>
             </div>
 
           </div>

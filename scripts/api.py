@@ -935,6 +935,7 @@ def create_curriculum_chapter(chapter: CurriculumChapterCreate):
 class GenerateChapterRequest(BaseModel):
     title: str
     subject: str
+    images_base64: Optional[List[str]] = None  # List of optional images for vision-based generation
 
 @app.post("/api/curriculum/{chapter_id}/generate")
 def generate_chapter_content(chapter_id: str, request: GenerateChapterRequest):
@@ -960,11 +961,37 @@ def generate_chapter_content(chapter_id: str, request: GenerateChapterRequest):
         request.title, 
         request.subject, 
         chapter_id,
-        chapter_type=chapter_type
+        chapter_type=chapter_type,
+        images_base64=request.images_base64
     )
     
     if "Error" in generated_md and len(generated_md) < 200:
          raise HTTPException(status_code=500, detail=generated_md)
+    
+    # Save uploaded images to assets and prepend to markdown
+    image_md_lines = []
+    if request.images_base64 and len(request.images_base64) > 0:
+        import uuid
+        import base64
+        
+        assets_dir = CONTENT_DIR / "assets"
+        assets_dir.mkdir(exist_ok=True)
+        
+        for i, img_b64 in enumerate(request.images_base64):
+            img_filename = f"{chapter_id}_ref_{i+1}_{uuid.uuid4().hex[:8]}.png"
+            img_path = assets_dir / img_filename
+            
+            # Decode and save image
+            img_data = base64.b64decode(img_b64)
+            img_path.write_bytes(img_data)
+            
+            # Add markdown reference (frontend will rewrite this to absolute URL locally)
+            image_md_lines.append(f"![题目截图 {i+1}](/assets/{img_filename})")
+        
+    # Combine image references with generated content
+    if image_md_lines:
+        images_section = "## 原题截图\n\n" + "\n\n".join(image_md_lines) + "\n\n---\n\n"
+        generated_md = images_section + generated_md
     
     # Update/Merge Metadata
     meta = existing_meta.copy()

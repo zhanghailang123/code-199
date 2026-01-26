@@ -8,6 +8,7 @@ import gemoji from '@bytemd/plugin-gemoji'
 import mermaid from '@bytemd/plugin-mermaid'
 import frontmatter from '@bytemd/plugin-frontmatter'
 import breaks from '@bytemd/plugin-breaks'
+import { API_BASE } from '../config/api.js'
 import 'bytemd/dist/index.css'
 import 'highlight.js/styles/github-dark.css' // Or another hljs theme
 import 'katex/dist/katex.css'
@@ -36,6 +37,20 @@ const frontmatterRenderer = () => ({
   }
 });
 
+// Custom plugin to rewrite relative /assets/ URLs for images
+const imageRewritePlugin = () => ({
+  viewerEffect({ el }) {
+    if (!el) return
+    const imgs = el.querySelectorAll('img');
+    imgs.forEach(img => {
+      const src = img.getAttribute('src');
+      if (src && src.startsWith('/assets/')) {
+        img.setAttribute('src', `${API_BASE}${src}`);
+      }
+    });
+  }
+});
+
 const plugins = [
   gfm(),
   breaks(),
@@ -45,6 +60,7 @@ const plugins = [
   gemoji(),
   mermaid(),
   frontmatterRenderer(),
+  imageRewritePlugin(),
 ]
 
 const props = defineProps({
