@@ -274,7 +274,8 @@ const statusLabels = {
 const subjectLabels = {
   math: { text: '数学', color: 'text-red-400 bg-red-500/10 border-red-500/20' },
   logic: { text: '逻辑', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' },
-  english: { text: '英语', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' }
+  english: { text: '英语', color: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20' },
+  soft_exam_senior: { text: '软考高级', color: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20' }
 }
 
 async function loadCurriculum() {
@@ -397,7 +398,10 @@ async function saveChapter() {
     const res = await fetch(`${API_BASE}/api/curriculum/${selectedChapter.value.id}/content`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: chapterContent.value })
+      body: JSON.stringify({ 
+        content: chapterContent.value,
+        title: selectedChapter.value.title  // Include updated title
+      })
     })
     
     if (!res.ok) throw new Error('保存失败')
@@ -588,6 +592,7 @@ onMounted(() => {
       <button @click="activeSubject = 'math'" class="px-4 py-2 rounded-lg font-medium transition-all text-sm" :class="activeSubject === 'math' ? 'bg-red-500/10 text-red-400 ring-1 ring-red-500/20' : 'text-zinc-500 hover:text-red-400 hover:bg-red-500/5'">数学</button>
       <button @click="activeSubject = 'logic'" class="px-4 py-2 rounded-lg font-medium transition-all text-sm" :class="activeSubject === 'logic' ? 'bg-amber-500/10 text-amber-400 ring-1 ring-amber-500/20' : 'text-zinc-500 hover:text-amber-400 hover:bg-amber-500/5'">逻辑</button>
       <button @click="activeSubject = 'english'" class="px-4 py-2 rounded-lg font-medium transition-all text-sm" :class="activeSubject === 'english' ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-emerald-500/20' : 'text-zinc-500 hover:text-emerald-400 hover:bg-emerald-500/5'">英语</button>
+      <button @click="activeSubject = 'soft_exam_senior'" class="px-4 py-2 rounded-lg font-medium transition-all text-sm" :class="activeSubject === 'soft_exam_senior' ? 'bg-cyan-500/10 text-cyan-400 ring-1 ring-cyan-500/20' : 'text-zinc-500 hover:text-cyan-400 hover:bg-cyan-500/5'">软考高级</button>
     </div>
     
     <!-- Type Filter Tabs -->
@@ -620,7 +625,8 @@ onMounted(() => {
              :class="{
                'bg-gradient-to-r from-red-500/5 via-transparent to-transparent': chapter.subject === 'math',
                'bg-gradient-to-r from-amber-500/5 via-transparent to-transparent': chapter.subject === 'logic',
-               'bg-gradient-to-r from-emerald-500/5 via-transparent to-transparent': chapter.subject === 'english'
+               'bg-gradient-to-r from-emerald-500/5 via-transparent to-transparent': chapter.subject === 'english',
+               'bg-gradient-to-r from-cyan-500/5 via-transparent to-transparent': chapter.subject === 'soft_exam_senior'
              }"></div>
 
         <div class="relative flex items-center gap-4">
@@ -629,9 +635,10 @@ onMounted(() => {
                :class="{
                  'bg-zinc-900 text-red-500': chapter.subject === 'math',
                  'bg-zinc-900 text-amber-500': chapter.subject === 'logic',
-                 'bg-zinc-900 text-emerald-500': chapter.subject === 'english'
+                 'bg-zinc-900 text-emerald-500': chapter.subject === 'english',
+                 'bg-zinc-900 text-cyan-500': chapter.subject === 'soft_exam_senior'
                }">
-            {{ chapter.subject === 'math' ? '📐' : chapter.subject === 'logic' ? '🧠' : '🔤' }}
+            {{ chapter.subject === 'math' ? '📐' : chapter.subject === 'logic' ? '🧠' : chapter.subject === 'english' ? '🔤' : '💻' }}
           </div>
           
           <div class="flex-1 min-w-0">
@@ -691,7 +698,15 @@ onMounted(() => {
                   </span>
                   <span class="text-zinc-500 text-xs font-mono">ID: {{ selectedChapter.id }}</span>
                </div>
-              <h2 class="text-xl font-bold text-white">{{ selectedChapter.title }}</h2>
+               <!-- Editable Title -->
+               <input 
+                  v-if="isEditing"
+                  v-model="selectedChapter.title"
+                  type="text"
+                  class="text-xl font-bold text-white bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1 w-full max-w-md focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none"
+                  placeholder="章节标题"
+               />
+               <h2 v-else class="text-xl font-bold text-white">{{ selectedChapter.title }}</h2>
             </div>
             
             <div class="flex items-center gap-3">
@@ -857,6 +872,7 @@ onMounted(() => {
                 <option value="math">数学</option>
                 <option value="logic">逻辑</option>
                 <option value="english">英语</option>
+                <option value="soft_exam_senior">软考高级</option>
               </select>
             </div>
 

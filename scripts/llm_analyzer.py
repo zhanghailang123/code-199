@@ -19,7 +19,8 @@ from prompts import (
     VOCABULARY_ARTICLE_PROMPT,
     BATCH_ANALYZE_PROMPT,
     VOCABULARY_FRONTMATTER_PROMPT,
-    VOCABULARY_CARD_PROMPT
+    VOCABULARY_CARD_PROMPT,
+    SENIOR_SOFT_EXAM_PROMPT
 )
 
 # Load configuration
@@ -590,19 +591,23 @@ def generate_vocab_card(word: str, phonetic: str, definitions) -> dict:
 def generate_curriculum_content(title: str, subject: str, chapter_id: str, chapter_type: str = "topic", images_base64: List[str] = None) -> str:
     """Generate structured curriculum content using LLM."""
     
-    from prompts import CURRICULUM_CONTENT_PROMPT, WRITING_CURRICULUM_PROMPT
+    from prompts import CURRICULUM_CONTENT_PROMPT, WRITING_CURRICULUM_PROMPT, SENIOR_SOFT_EXAM_PROMPT
 
     # Map subject to Chinese name for better context
     subject_map = {
         "math": "管理类联考数学 (Mathematics)",
         "logic": "管理类联考逻辑 (Logic)",
         "english": "考研英语 (English)",
-        "writing": "管理类联考写作 (Writing)"
+        "writing": "管理类联考写作 (Writing)",
+        "soft_exam_senior": "信息系统项目管理师 (Soft Exam Senior)"
     }
     subject_cn = subject_map.get(subject, subject)
 
     # Select appropriate prompt based on chapter type
-    if chapter_type == "writing":
+    if subject == "soft_exam_senior":
+         prompt = SENIOR_SOFT_EXAM_PROMPT.format(question_text=title) # Reuse title as question input
+         system_msg = "你是一位资深的信息系统项目管理师（软考高级）专家及阅卷组长。"
+    elif chapter_type == "writing":
         prompt = WRITING_CURRICULUM_PROMPT.format(
             title=title,
             chapter_id=chapter_id

@@ -138,7 +138,12 @@ const difficultyStars = computed(() => {
 })
 
 const subjectLabel = computed(() => {
-  const map = { math: '数学', logic: '逻辑', english: '英语' }
+  const map = { 
+    math: '数学', 
+    logic: '逻辑', 
+    english: '英语',
+    soft_exam_senior: '软考高级' 
+  }
   const sub = localMeta.value.subject || route.params.category || 'unknown'
   return map[sub] || sub
 })

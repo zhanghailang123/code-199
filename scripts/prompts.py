@@ -490,3 +490,41 @@ VOCABULARY_CARD_PROMPT = """ä¸ºå•è¯ "{word}" ({phonetic}) ç”Ÿæˆä¸€å¼ ç²¾ç®€çš
 - ä¾‹å¥ç”¨ | åˆ†éš”è‹±æ–‡å’Œä¸­æ–‡
 - common_phrasesåªè¿”å›žè‹±æ–‡ï¼Œç”¨|åˆ†éš”
 - åªè¿”å›žJSONï¼Œä¸è¦å…¶ä»–å†…å®¹"""
+
+SENIOR_SOFT_EXAM_PROMPT = """ÄãÊÇÒ»Î»×ÊÉîµÄÐÅÏ¢ÏµÍ³ÏîÄ¿¹ÜÀíÊ¦£¨Èí¿¼¸ß¼¶£©×¨¼Ò¼°ÔÄ¾í×é³¤¡£
+ÄãµÄÄ¿±êÊÇ°ïÖú¿¼Éú**Í¨¹ý¿¼ÊÔ**£¬ÕÆÎÕÏîÄ¿¹ÜÀíÖªÊ¶ÌåÏµ£¨PMBOK£©ÓëÐÅÏ¢ÏµÍ³×ÛºÏÖªÊ¶¡£
+
+ÌâÄ¿ÄÚÈÝ£º
+{question_text}
+
+Çë°´ÕÕÒÔÏÂJSON¸ñÊ½·µ»Ø·ÖÎö½á¹û£¨È·±£·µ»ØµÄÊÇºÏ·¨µÄJSON£©£º
+
+```json
+{{
+    "subject": "soft_exam_senior",
+    "type": "choice»òcase»òessay",
+    "difficulty": 1µ½5,
+    "content": "ÌâÄ¿Ö÷ÌåÄÚÈÝ",
+    "options": "Ñ¡ÏîÎÄ±¾£¨ÈçÓÐ£©",
+    "answer": "ÕýÈ·´ð°¸",
+    "explanation": "ÇëÑÏ¸ñ°´ÕÕÏÂÃæ¸ñÊ½Êä³ö½âÎö£¨Ê¹ÓÃMarkdown£©£º\\n\\n### ?? ¿¼µã¶¨Î»\\n±¾Ìâ¿¼²é [Ê®´ó¹ÜÀíÁìÓò/Îå´ó¹ý³Ì×é/ÐÅÏ¢»¯»ù´¡] ÖÐµÄ [¾ßÌåÖªÊ¶µã]£¬ÊôÓÚ [¸ßÆµ/ºËÐÄ] ¿¼µã¡£\\n\\n### ?? ÖªÊ¶µã¾«½²\\n**¸ÅÄî**: [ºËÐÄ¸ÅÄî¶¨Òå]\\n**¹Ø¼üÒªËØ**: [Èç£ºÊäÈë/Êä³ö/¹¤¾ßÓë¼¼Êõ]\\n**Ò×»ì±æÎö**: [Ïà¹Ø¸ÅÄî¶Ô±È]\\n\\n### ? ½âÌâË¼Â·\\n**Step 1**: [·ÖÎöÌâ¸É¹Ø¼üÐÅÏ¢]\\n**Step 2**: [ÅÅ³ý´íÎóÑ¡Ïî/¹¹½¨´ðÌâ¿ò¼Ü]\\n**Step 3**: [µÃ³ö½áÂÛ/ÍêÉÆ´ð°¸]\\n\\n### ?? ´ðÌâ/ÂÛÎÄ ¼¼ÇÉ\\n[Õë¶ÔÑ¡ÔñÌâ£ºÅÅ³ý·¨¼¼ÇÉ£»Õë¶Ô°¸Àý£ºÍòÄÜ´ðÌâÄ£°å£»Õë¶ÔÂÛÎÄ£ºÐ´×÷¼Ü¹¹ÓëÁÁµã]",
+    "knowledge_points": ["ÏîÄ¿·¶Î§¹ÜÀí", "¹Ø¼üÂ·¾¶·¨", "ÕõÖµ¹ÜÀí", "ÐÅÏ¢»¯Õ½ÂÔ"],
+    "tags": ["×ÛºÏÖªÊ¶", "°¸Àý·ÖÎö", "ÂÛÎÄ"],
+    
+    "case_analysis": {{
+        "problems": ["ÎÊÌâ1¹Ø¼üµã", "ÎÊÌâ2¹Ø¼üµã"],
+        "solution_template": "°¸Àý·ÖÎöÍòÄÜ½ð¾ä/Ä£°å"
+    }},
+
+    "essay_guide": {{
+        "structure": "ÕªÒª -> ÕýÎÄ(±³¾°+¹ý¶É+ºËÐÄ¹ý³Ì) -> ½áÎ²",
+        "highlights": ["ÀíÂÛÁªÏµÊµ¼Ê", "Êý¾ÝÏêÊµ", "Âß¼­ÇåÎú"]
+    }}
+}}
+```
+
+×¢Òâ£º
+1. ÈôÊÇ**Ñ¡ÔñÌâ**£¬ÖØµã½²½âÖªÊ¶µã±æÎö£¬ÒýÓÃ PMBOK ±ê×¼ÊõÓï¡£
+2. ÈôÊÇ**°¸Àý·ÖÎö**£¬ÖØµãÌá¹©"´ðÌâÄ£°å"ºÍ"²É·Öµã"¡£
+3. ÈôÊÇ**ÂÛÎÄ**£¬ÖØµãÌá¹©"Ð´×÷¼Ü¹¹"ºÍ"×ÓÌâÄ¿ÏìÓ¦²ßÂÔ"¡£
+"""

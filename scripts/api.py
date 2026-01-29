@@ -820,6 +820,7 @@ class UpdateStatusRequest(BaseModel):
 
 class UpdateContentRequest(BaseModel):
     content: str  # Full markdown content to save
+    title: Optional[str] = None  # Optional new title to update in frontmatter
 
 @app.put("/api/curriculum/{chapter_id}/status")
 def update_chapter_status(chapter_id: str, request: UpdateStatusRequest):
@@ -854,8 +855,21 @@ def update_chapter_content(chapter_id: str, request: UpdateContentRequest):
                     meta = parse_frontmatter(content)
                     
                     if meta.get("id") == chapter_id or file.stem == chapter_id:
+                        new_content = request.content
+                        
+                        # If title is provided, update it in frontmatter
+                        if request.title:
+                            # Parse existing frontmatter and update title
+                            import re
+                            fm_match = re.match(r'^---\r?\n([\s\S]*?)\r?\n---', new_content)
+                            if fm_match:
+                                fm_text = fm_match.group(1)
+                                # Update title line
+                                new_fm = re.sub(r"title:.*", f"title: {request.title}", fm_text)
+                                new_content = new_content.replace(fm_match.group(0), f"---\n{new_fm}\n---")
+                        
                         # Overwrite the file with new content
-                        file.write_text(request.content, encoding="utf-8")
+                        file.write_text(new_content, encoding="utf-8")
                         return {"message": "Content updated"}
     
     raise HTTPException(status_code=404, detail=f"Chapter {chapter_id} not found")
