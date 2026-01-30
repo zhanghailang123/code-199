@@ -1043,6 +1043,38 @@ onMounted(() => {
 .question-link:hover {
   color: #93c5fd; /* blue-300 */
 }
+
+/* === ByteMD List Styles Fix === */
+/* Restore list markers removed by TailwindCSS preflight */
+.bytemd-preview ul,
+.markdown-body ul {
+  list-style-type: disc;
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.bytemd-preview ol,
+.markdown-body ol {
+  list-style-type: decimal;
+  padding-left: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.bytemd-preview li,
+.markdown-body li {
+  margin-bottom: 0.25rem;
+}
+
+/* Nested lists */
+.bytemd-preview ul ul,
+.markdown-body ul ul {
+  list-style-type: circle;
+}
+
+.bytemd-preview ul ul ul,
+.markdown-body ul ul ul {
+  list-style-type: square;
+}
 </style>
 
 <style scoped>
